@@ -106,10 +106,10 @@ package.zip
 | `groups` | id, course_id, name | |
 | `students` | id, course_id, group_id, student_no, name | 花名册 CSV 导入；`student_no` 每课程唯一 |
 | `assignments` | id, course_id, **code**, title, description, **rubric_json**, opens_at, deadline, max_package_mb | rubric_json = 维度/权重/描述列表 |
-| `submissions` | id, assignment_id, student_id, submitted_at, package_path, size_bytes, **status**, error | status: `received→queued→evaluating→evaluated / failed`；(assignment, student) 唯一，重交覆盖（旧包保留） |
-| `evaluations` | id, submission_id, **grade**(A–E), dimension_scores_json, rationale, feedback_json, flags_json, evidence_json, model, prompt_version, created_at | AI 个人评估 |
-| `group_evaluations` | id, assignment_id, group_id, grade, rationale, contribution_json, evidence_json, created_at | AI 小组评估 |
-| `grade_overrides` | id, target_type(individual/group), target_id, final_grade, comment, teacher_id, updated_at | 教师调分，不覆盖 AI 原分；冲突后写覆盖 |
+| `submissions` | id, assignment_id, student_id, submitted_at, package_path, size_bytes, **status**, error | status: `received→queued→evaluating→evaluated / failed`；(assignment, student) 唯一，重交**更新同一行**（旧包保留在磁盘） |
+| `evaluations` | id, submission_id, **grade**(A–E), dimension_scores_json, rationale, feedback_json, flags_json, evidence_json, model, prompt_version, created_at | AI 个人评估；**每 submission 一条，重评就地更新** |
+| `group_evaluations` | id, assignment_id, group_id, grade, rationale, contribution_json, evidence_json, created_at | AI 小组评估；(assignment, group) 唯一，**重评就地更新** |
+| `grade_overrides` | id, target_type(individual/group), target_id, final_grade, comment, teacher_id, updated_at | individual→submission_id，group→(assignment_id, group_id)；**键不随重评变化，调分跨重评保留**；冲突后写覆盖 |
 | `eval_jobs` | id, assignment_id, kind(individual/group), target_id, status, attempts, last_error, updated_at | 自动创建；总览板据此展示进度 |
 
 **文件存储**：`data/packages/{assignment}/{student}/…zip`（原始包）+ `data/extracted/{submission_id}/`（解压内容，供浏览与评估）。
@@ -147,7 +147,7 @@ GET  /assignments/{id}/export    # 成绩 CSV（含 AI 原评与最终评）
 
 **总原则：证据可追溯、输出结构化、调用可恢复、全自动触发。**
 
-**触发**：提交校验通过即入队；小组成员个人评估齐 → 自动小组评估；截止后定时任务补评缺员小组（注明缺员）；失败自动指数退避重试 3 次 → 标 failed 在总览板标红，提供运维用手动重试。
+**触发**：提交（含 `--force` 重交）校验通过即入队；小组成员个人评估齐 → 自动小组评估；**成员重交 → 个人重评（就地更新），若小组评估已存在则连带触发小组重评**；截止后定时任务补评缺员小组（注明缺员）；失败自动指数退避重试 3 次 → 标 failed 在总览板标红，提供运维用手动重试。
 
 **流水线（三段）**：
 
