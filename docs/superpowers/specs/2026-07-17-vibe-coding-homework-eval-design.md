@@ -100,14 +100,14 @@ PyPI: vibe-submit 包
 - **卸载**：`/plugins` 内卸载/禁用；`vibe-submit uninstall` 移除 `config.toml` 注册（幂等）；`~/.vibe-submit/` 本地数据（含 outbox 未上传包）卸载时提示、学生自决；
 - **回退**：marketplace 源以 `ref`/`sha` 钉版；出问题时教师把 ref 指回旧 commit，学生 upgrade 即整体回退（钉的核心版本随之回退）。
 
-### 3.4 目录约定：
+### 3.4 目录约定
 
 ```
 项目根目录/
 ├── .vibe-submit.toml        # 可选：本项目作业码等
 ├── screenshots/             # 学生放运行效果截图（手动截图）
 └── (源代码…)
-~/.vibe-submit/config.toml   # install 时保存学号、服务器地址
+~/.vibe-submit/config.toml   # bootstrap 时保存学号、服务器地址
 ~/.vibe-submit/outbox/       # 上传失败的包，可重试
 ```
 
