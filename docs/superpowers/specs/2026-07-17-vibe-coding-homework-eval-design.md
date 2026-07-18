@@ -1,6 +1,6 @@
 # Vibe Coding 作业提交与智能评估系统 — 设计文档
 
-- 日期：2026-07-17
+- 日期：2026-07-17（2026-07-18 修订：学生端升级为 Codex Plugin + 课程 Git Marketplace 分发，§2/§3/§7/§8/§9/§10 更新，新增 §11）
 - 状态：已通过分节评审，待实现
 - 定位：先作课程项目交付 MVP（2–3 周可演示），架构按可投产标准设计，预留演进空间
 
@@ -10,7 +10,7 @@
 
 本系统：
 
-1. 学生端通过 **Codex 采集插件**（MCP 集成 + CLI 兜底）采集作业相关的完整 Codex 会话、代码快照、运行截图，上传至租赁服务器；
+1. 学生端通过 **Codex Plugin**（经课程 Git Marketplace 分发，可在 Codex 插件页面发现安装；CLI 兜底）采集作业相关的完整 Codex 会话、代码快照、运行截图，上传至租赁服务器；
 2. 服务器端评估 Agent **自动**（无需教师触发）对提交独立评估，生成 A–E 等级、维度小分、依据、针对学生工作的反馈建议；
 3. 教师（**多教师同时登录**）在网页端查看全部课程数据、复核并调整最终等级、导出成绩；
 4. 按小组生成课堂展示视图。
@@ -21,16 +21,16 @@
 
 ```
 学生机器                          租赁服务器 (Docker 单容器)
-┌─────────────────┐              ┌──────────────────────────────────┐
-│ vibe-submit     │   HTTPS      │  FastAPI 单体应用                 │
-│  ├ MCP server   │ ───────────► │  ├─ submissions  上传/校验/存储   │
-│  └ CLI 兜底     │  zip+manifest│  ├─ courses      课程/作业/花名册  │
-│ 扫描 ~/.codex/  │              │  ├─ evaluation   评分Agent+LLM    │
-│ 按 cwd 筛选会话  │              │  ├─ review       教师复核/调分    │
-│ 收集代码+截图    │              │  └─ presentation 课堂展示视图     │
-└─────────────────┘              │  SQLite(→可切PG) + 文件系统存储    │
-                                 └──────────┬───────────────────────┘
-                                            │ OpenAI 兼容 API
+┌─────────────────────────┐      ┌──────────────────────────────────┐
+│ Codex Plugin            │      │  FastAPI 单体应用                 │
+│ (课程 Git Marketplace    │      │  ├─ submissions  上传/校验/存储   │
+│  分发, /plugins 安装)    │ HTTPS│  ├─ courses      课程/作业/花名册  │
+│  ├ Skill 提交引导        │─────►│  ├─ evaluation   评分Agent+LLM    │
+│  └ .mcp.json ─ uvx 启动  │ zip  │  ├─ review       教师复核/调分    │
+│       vibe-submit-mcp    │      │  └─ presentation 课堂展示视图     │
+│ 采集 ~/.codex 会话(按cwd) │      │  SQLite(→可切PG) + 文件系统存储    │
+│ 收集代码+截图, CLI 兜底   │      └──────────┬───────────────────────┘
+└─────────────────────────┘                 │ OpenAI 兼容 API
                                             ▼
                                      国内 LLM (DeepSeek/通义/智谱…)
 ```
@@ -47,19 +47,60 @@
 4. **复核**：教师在总览板按小组/个人查看等级、依据、会话时间线；可调最终等级并留备注（AI 原始评分永久保留）；
 5. **展示**：按小组生成课堂展示视图（一页一组），方向键翻页投屏。
 
-## 3. 学生端：采集插件
+## 3. 学生端：Codex Plugin（课程 Git Marketplace 分发）
 
-**形态：MCP 为主、CLI 兜底，同一 pip 包（`vibe-submit`）交付。**
+**形态：学生在 Codex 插件页面（Codex CLI `/plugins`、ChatGPT 桌面应用 Codex 模式）从课程 Marketplace 发现并安装插件；VS Code IDE 扩展用户走 `config.toml` 注册路径（插件页面对 IDE 不可用）；纯 CLI 永远兜底。三种客户端均支持，共用同一核心。**
 
-| 组件 | 作用 |
+### 3.1 组件关系
+
+```
+┌─ 课程 Marketplace 仓库 (git, GitHub/Gitee 均可) ─────────┐
+│ .agents/plugins/marketplace.json   # 市场清单            │
+│ plugins/vibe-submit/                                     │
+│   ├── .codex-plugin/plugin.json  # 插件清单+界面信息     │
+│   ├── .mcp.json                  # {"vibe-submit":       │
+│   │     {"command":"uvx","args":["vibe-submit-mcp==X.Y.Z"]}}
+│   ├── skills/submit-homework/SKILL.md  # 提交引导提示词  │
+│   └── assets/                                            │
+└──────────────────────────────────────────────────────────┘
+                    │ /plugins 安装（缓存到 ~/.codex/plugins/cache/）
+                    ▼
+PyPI: vibe-submit 包
+  ├── vibe_submit/core/         # 采集/筛选/打包/上传（单一事实源）
+  ├── vibe_submit/mcp_server.py # MCP 薄封装（submit_homework 工具）
+  └── vibe_submit/cli.py        # CLI：submit / uninstall / doctor
+```
+
+- **Codex Plugin** = 纯包装与分发单元，本身几乎不含逻辑（声明 + 提示词 + 图标）；
+- **Skill**（`submit-homework`）= 告诉 Codex 何时建议提交、如何向学生解释将上传什么、失败如何引导；
+- **MCP server** = 核心的薄封装，以 `uvx vibe-submit-mcp==X.Y.Z` 启动，**核心版本钉死在插件内**——插件升级才带动核心升级，全班行为一致；
+- **CLI** = 同一核心的命令行入口，兼兜底路径与诊断工具（`doctor` 自检）；
+- **核心模块**与任何宿主解耦，单测覆盖；未来加新宿主零改动核心。
+
+### 3.2 首次安装（bootstrap，幂等，可重跑自愈）
+
+课程 README 提供一条命令（Windows PowerShell / macOS·Linux shell 各一），依次：
+
+1. 检测并无则安装 uv（国内课堂自动写入 PyPI 镜像配置）；
+2. `codex plugin marketplace add <课程仓库URL>`（教师课前把 URL 发给学生）；
+3. 交互询问学号，写入 `~/.vibe-submit/config.toml`；
+4. 自检（等价 `doctor`）并打印使用指引。
+
+| 客户端路径 | bootstrap 之后 |
 |---|---|
-| `vibe-submit install` | 自动把 MCP server 注册进 Codex（调 `codex mcp add` 或安全地追加 `~/.codex/config.toml` 一节，不动学生原有配置）；幂等，可反复运行自我修复；交互保存学号与服务器地址到 `~/.vibe-submit/config.toml` |
-| MCP server（随包安装） | 暴露 `submit_homework` 工具，学生在 Codex 对话里说"提交作业"即可触发；注册时配置为信任该 server，免去每次确认 |
-| `vibe-submit submit` | CLI 兜底：MCP 出问题、CI 环境、或学生习惯命令行时使用 |
+| **A. Codex CLI** | `codex` → `/plugins` → 课程 tab → 安装；对话里说"提交作业"即可（首次调用时 uvx 拉包数秒） |
+| **B. ChatGPT 桌面应用 Codex 模式** | 同上（与 CLI 共享 `~/.codex` 配置；桌面端实际表现见 §11 P3 验证） |
+| **C. VS Code IDE 扩展** | bootstrap 额外把 `[mcp_servers.vibe-submit]`（同一 `uvx vibe-submit-mcp==X.Y.Z` 命令）写入 `~/.codex/config.toml`；IDE 会话内工具直接可用（见 §11 P4 验证） |
 
-两条路径共用同一套"采集 → 打包 → 上传"核心模块，核心模块代码与传输层分离，未来加其他宿主（新 IDE 等）零改动核心。
+**兜底**：任何集成失效时，`uvx vibe-submit submit --code <作业码>` 纯 CLI 永远可用。`uvx vibe-submit doctor` 诊断（uv 在 PATH？marketplace 已注册？MCP 能启动？服务器可达？）并尽量自动修复（如 PATH 失效时把配置中的 command 改写为 uvx 绝对路径）。
 
-**目录约定**：
+### 3.3 更新 / 卸载 / 回退
+
+- **更新**：教师推 marketplace 仓库新 commit；学生重跑 bootstrap（内含 `codex plugin marketplace upgrade`）或手动执行之。核心版本被 `.mcp.json` 钉死、随插件升级；manifest 带格式版本号，服务器拒绝过旧客户端并返回升级指引；
+- **卸载**：`/plugins` 内卸载/禁用；`vibe-submit uninstall` 移除 `config.toml` 注册（幂等）；`~/.vibe-submit/` 本地数据（含 outbox 未上传包）卸载时提示、学生自决；
+- **回退**：marketplace 源以 `ref`/`sha` 钉版；出问题时教师把 ref 指回旧 commit，学生 upgrade 即整体回退（钉的核心版本随之回退）。
+
+### 3.4 目录约定：
 
 ```
 项目根目录/
@@ -70,7 +111,9 @@
 ~/.vibe-submit/outbox/       # 上传失败的包，可重试
 ```
 
-**提交流程**（CLI 与 MCP 共用）：
+### 3.5 提交流程（CLI 与 MCP 共用）
+
+MCP 调用时，作业码由 Codex 从对话中获取（如学生说"提交作业，作业码 HW3"），学号读取 `~/.vibe-submit/config.toml`；CLI 则由参数/配置文件提供。
 
 1. **取作业元数据**：`GET /api/assignments/{code}/meta` → 标题、开放日期、截止时间、大小上限；
 2. **筛选会话**：扫描 `~/.codex/sessions/**/*.jsonl`，逐文件只读首行 `session_meta`（含 `cwd`、起始时间），保留 `cwd` 等于项目根目录且时间不早于作业开放日的会话。解析容忍未知行类型（Codex 升级不炸）；正在写入的当前会话做只读复制、跳过不完整末行；
@@ -79,7 +122,7 @@
 5. **预览确认**：`--dry-run` 或交互确认，列出会话数、文件数、总大小，**明确告知完整对话内容将上传**；
 6. **打包上传**：zip + manifest，httpx 流式上传 + 进度条；失败存 outbox，`submit --retry`；重复提交服务器返回 409，需 `--force`。
 
-**包结构**：
+### 3.6 包结构
 
 ```
 package.zip
@@ -91,9 +134,9 @@ package.zip
 └── screenshots/
 ```
 
-**诚实性边界**：客户端无法技术上防止篡改；manifest 哈希 + 服务器端时间合理性检查抓低级作弊；真正防线是教师可审阅完整原始对话——伪造多会话连贯迭代轨迹成本极高。MVP 不做重客户端防篡改。
+### 3.7 诚实性边界：客户端无法技术上防止篡改；manifest 哈希 + 服务器端时间合理性检查抓低级作弊；真正防线是教师可审阅完整原始对话——伪造多会话连贯迭代轨迹成本极高。MVP 不做重客户端防篡改。
 
-**隐私**：manifest 中本机路径的家目录替换为 `~`；上传前显式确认。
+### 3.8 隐私：manifest 中本机路径的家目录替换为 `~`；上传前显式确认。
 
 ## 4. 服务器：数据模型与 API
 
@@ -200,6 +243,10 @@ OpenAI 兼容客户端（DeepSeek / 通义 DashScope 兼容模式 / 智谱均可
 | 学生端 | 找不到会话 / `~/.codex` 不存在 | 明确报错 + 排查提示 |
 | 学生端 | 包超限 / 网络失败 | 超限给清理建议；失败存 outbox，`submit --retry` |
 | 学生端 | 409 重复提交 | 提示需 `--force` |
+| 学生端 | bootstrap 任一步失败（装 uv / marketplace add / 写配置） | 幂等可重跑；每步明确报错与手动备选指引 |
+| 学生端 | uvx 首次拉包失败（网络） | 自动用已配镜像重试；提示检查后重跑 |
+| 学生端 | GUI 应用 PATH 陈旧找不到 uvx | `doctor` 检测并改写配置为 uvx 绝对路径 |
+| 学生端 | 插件 MCP 启动失败 | `doctor` 诊断；兜底 `uvx vibe-submit submit` 纯 CLI |
 | 服务器 | 上传校验失败 | 422 + 具体原因 |
 | 评估 | LLM 超时/限流/5xx | 自动重试 3 次（指数退避）→ failed，总览板标红，可手动重试 |
 | 评估 | 非法 JSON / 证据回查不过 | 更严格措辞重试 2 次 → failed |
@@ -211,12 +258,15 @@ OpenAI 兼容客户端（DeepSeek / 通义 DashScope 兼容模式 / 智谱均可
 - **学生端**：会话筛选（各 cwd/时间组合 fixture rollout 文件）、打包与 manifest、denylist、dry-run；对 mock 服务器的上传集成测试；
 - **服务器**：API 契约测试（TestClient）；rollout 解析器（真实样例文件）；评估流水线用 **FakeLLMProvider**（固定 JSON）全程可测；
 - **端到端**：fixture 提交包 → 自动评估（假模型）→ 教师调分 → 导出 CSV 冒烟；
+- **插件与分发**：marketplace.json / plugin.json 结构校验（CI 中 schema 检查）；bootstrap 脚本幂等性测试；§11 原型验证清单（P1–P7）先行，三客户端路径各一次人工冒烟；
 - **评估质量**：小型 golden 集（若干真实感提交 + 期望等级区间），开发期手动跑用于调 prompt，不进 CI；
 - 核心模块（解析、评估、API）覆盖率 ≥80%。
 
 ## 9. 部署
 
-单 Dockerfile（FastAPI + SQLite + data 卷）；环境变量：LLM 密钥、初始管理员、服务器地址（写进学生端 install 指引）。备份 = 定期拷贝 SQLite 文件 + `data/`（文档附 cron 示例）。HTTPS 由前置反代（Caddy/Nginx）或云平台负载均衡终止。
+单 Dockerfile（FastAPI + SQLite + data 卷）；环境变量：LLM 密钥、初始管理员、服务器地址（写进学生端 bootstrap 指引）。备份 = 定期拷贝 SQLite 文件 + `data/`（文档附 cron 示例）。HTTPS 由前置反代（Caddy/Nginx）或云平台负载均衡终止。
+
+**学生端发布**：`vibe-submit` 包发布到 PyPI（版本即 `.mcp.json` 中钉的版本）；课程 Marketplace 仓库（GitHub/Gitee）以 `ref` 钉版运营——升级 = 推新 commit 并移动 ref，回退 = ref 指回旧 commit；bootstrap 命令与仓库 URL 随课程 README 发布。
 
 ## 10. 明确不做（YAGNI）
 
@@ -225,3 +275,21 @@ OpenAI 兼容客户端（DeepSeek / 通义 DashScope 兼容模式 / 智谱均可
 - 前后端分离 SPA、多租户权限隔离
 - VL 模型看图评分（留扩展口）
 - Celery/Redis/PostgreSQL（演进路径预留，MVP 不上）
+- 官方公共插件目录上架（审核周期不可控，学期后再议）
+- 插件 hooks 自动提醒提交（需用户信任审核，摩擦大）
+
+## 11. 原型验证清单（实施第一步，按风险排序）
+
+以下能力官方文档未明确或存在平台差异，必须先以 spike 验证，再进入正式实现：
+
+| # | 验证项 | 不成立时的备选 |
+|---|---|---|
+| P1 | 插件 `.mcp.json` 声明的 `uvx vibe-submit-mcp==X.Y.Z` 在 **Codex CLI** 会话中实际启动、工具可调；是否有 env 字段可传镜像配置 | 插件退化为"Skill + 引导"，由 bootstrap 直接写 `config.toml` 注册 MCP（路径 C 变主路径） |
+| P2 | **Windows** 端到端：uv 安装 → PATH 生效 → CLI 插件 MCP 可用；重点验证 **GUI 启动的桌面应用 PATH 陈旧问题** | `doctor` 自动改写为 uvx 绝对路径；或仅承诺 CLI 路径 |
+| P3 | ChatGPT **桌面应用** Codex 模式是否读取 CLI 注册的 marketplace、插件安装后 MCP 生效 | 桌面用户走路径 C |
+| P4 | 手写 `config.toml` 的 `[mcp_servers]` 在 **VS Code Codex 扩展**当前版本生效 | 放弃 IDE 路径，仅支持 CLI/桌面 |
+| P5 | marketplace `git-subdir` source 的实际布局要求；**Gitee 等国内 git 托管**兼容性 | 用 GitHub + 镜像说明 |
+| P6 | （可选增强）作业模板仓库内 `.agents/plugins/marketplace.json` 是否自动出现在 `/plugins`、信任流程如何 | 放弃增强，只保留显式 add |
+| P7 | `uvx pkg==版本` 钉版与缓存升级行为（换版本号后新环境必然生效） | 改用 `uv tool install` + 显式升级命令 |
+
+**已由官方文档确认**（[plugins](https://learn.chatgpt.com/docs/plugins) / [build-plugins](https://learn.chatgpt.com/docs/build-plugins)，2026-07 查阅）：插件目录结构与 plugin.json 字段；`.mcp.json` 的 command/args 形式；Marketplace 四种 source（local / git / npm / 工作区）；`codex plugin marketplace add|list|upgrade|remove` 命令集；安装缓存路径 `~/.codex/plugins/cache/`；`/plugins` 浏览器与启用/禁用机制；插件在 CLI 与桌面应用可用、**在 IDE 扩展与移动端不可用**。
