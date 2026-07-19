@@ -11,7 +11,7 @@ from unittest.mock import ANY, patch
 import pytest
 
 from vibe_submit.api import ApiError
-from vibe_submit.config import Config
+from vibe_submit.config import Config, ConfigError
 from vibe_submit.mcp_server import (
     get_assignment_meta_impl,
     get_submission_status_impl,
@@ -269,7 +269,7 @@ def test_retry_submission_no_args_returns_read_only_list(cfg, make_project, tmp_
     mock_upload.assert_not_called()
 
 
-def test_retry_submission_by_id_uploads(cfg, make_project, tmp_path):
+def test_retry_submission_by_id_uses_stored_server_url(cfg, make_project, tmp_path):
     zip_path = tmp_path / "pkg.zip"
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("dummy.txt", b"data")
@@ -286,15 +286,26 @@ def test_retry_submission_by_id_uploads(cfg, make_project, tmp_path):
 
     outbox_id = save_outbox(zip_path, manifest, cfg)
 
+    # Pass a different config; retry must use the server_url stored in outbox.
+    other_cfg = Config(
+        server_url="https://wrong.example.com",
+        student_no="9999999",
+        submit_token="other-token",
+        source="global",
+    )
+
     with patch(
         "vibe_submit.mcp_server.upload",
         return_value={"submission_id": "sub-3", "attempt_no": 1},
     ) as mock_upload:
-        result = retry_submission_impl(cfg, outbox_id=outbox_id)
+        result = retry_submission_impl(other_cfg, outbox_id=outbox_id)
 
     assert result["ok"] is True
     assert result["submission"]["submission_id"] == "sub-3"
     mock_upload.assert_called_once()
+    used_cfg = mock_upload.call_args_list[0].args[0]
+    assert used_cfg.server_url == "https://example.com"
+    assert used_cfg.student_no == "2026001"
 
 
 def test_retry_submission_by_assignment_code_uploads(cfg, make_project, tmp_path):
@@ -369,6 +380,27 @@ def test_get_submission_status_impl_passthrough(cfg):
     assert result["ok"] is True
     assert result["status"]["status"] == "graded"
     mock.assert_called_once_with(cfg, "HW01")
+
+
+def test_mcp_tools_return_structured_config_error(monkeypatch):
+    from vibe_submit import mcp_server as server
+
+    def boom():
+        raise ConfigError("global config not found")
+
+    monkeypatch.setattr(server, "_load_cfg", boom)
+
+    result = server.get_assignment_meta("HW01")
+    assert result == {
+        "ok": False,
+        "error": {"code": "CONFIG_ERROR", "message": "global config not found"},
+    }
+
+    result = server.retry_submission(outbox_id="obx-1")
+    assert result == {
+        "ok": False,
+        "error": {"code": "CONFIG_ERROR", "message": "global config not found"},
+    }
 
 
 def test_load_preview_rejects_expired_preview(cfg, make_project, monkeypatch, tmp_path):

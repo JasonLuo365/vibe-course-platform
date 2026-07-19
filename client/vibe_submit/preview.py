@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import secrets
-import shutil
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -96,10 +95,6 @@ def _compute_fingerprint(project_root: str, stats: dict[str, Any]) -> str:
         sort_keys=True,
     )
     return hashlib.sha256(data.encode("utf-8")).hexdigest()[:12]
-
-
-def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def create_preview(
