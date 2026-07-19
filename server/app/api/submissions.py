@@ -34,9 +34,10 @@ class ManifestIn(BaseModel):
 
 def _ver_tuple(v: str) -> tuple:
     try:
-        return tuple(int(x) for x in v.split("."))
+        parts = [int(x) for x in v.split(".")]
     except ValueError:
         return (0,)
+    return tuple((parts + [0, 0, 0])[:3])
 
 
 @router.post("/api/submissions", status_code=201)
@@ -105,5 +106,13 @@ async def submit(
         db.commit()
         return {"submission_id": sub.id, "attempt_no": attempt_no}
     finally:
-        if os.path.exists(tmp.name):
-            os.unlink(tmp.name)
+        try:
+            if not tmp.closed:
+                tmp.close()
+        except Exception:
+            pass
+        try:
+            if os.path.exists(tmp.name):
+                os.unlink(tmp.name)
+        except OSError:
+            pass

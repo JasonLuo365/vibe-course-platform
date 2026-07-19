@@ -1,10 +1,13 @@
 import hashlib
 import io
 import json
+import os
 import zipfile
+from datetime import timedelta
 
 from app.db import SessionLocal
 from app import models
+from app.utils import utcnow
 from tests.test_courses_roster import _login
 
 
@@ -14,8 +17,6 @@ def _setup(client, code=None):
     body = client.post(f"/courses/{cid}/roster",
                        json={"csv": "学号,姓名,小组\n1,甲,G\n"}).json()
     token = body["tokens_csv"].splitlines()[1].split(",")[2]
-    from datetime import timedelta
-    from app.utils import utcnow
     now = utcnow()
     code = client.post(f"/courses/{cid}/assignments", json={
         "title": "A", "description": "", "rubric": [{"name": "x", "weight": 100, "description": ""}],
@@ -79,3 +80,94 @@ def test_upload_rejections(client):
                                                   "submitted_at": "x", "files": []})},
                     files={"file": ("p.zip", _package(code)[1], "application/zip")})
     assert r.status_code == 404
+
+
+def test_upload_short_client_version_ok(client):
+    token, code = _setup(client)
+    r = _upload(client, token, code, client_version="0.1")
+    assert r.status_code == 201, r.text
+
+
+def test_upload_wrong_course(client):
+    token1, _ = _setup(client)
+    cid2 = client.post("/courses", json={"name": "C2", "term": ""}).json()["id"]
+    code2 = client.post(f"/courses/{cid2}/assignments", json={
+        "title": "A2", "description": "", "rubric": [{"name": "x", "weight": 100, "description": ""}],
+        "opens_at": (utcnow() - timedelta(days=1)).isoformat(),
+        "deadline": (utcnow() + timedelta(days=1)).isoformat(), "max_package_mb": 50}).json()["code"]
+    r = _upload(client, token1, code2)
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "WRONG_COURSE"
+
+
+def test_upload_deadline_passed(client):
+    _login(client)
+    cid = client.post("/courses", json={"name": "C", "term": ""}).json()["id"]
+    body = client.post(f"/courses/{cid}/roster",
+                       json={"csv": "学号,姓名,小组\n1,甲,G\n"}).json()
+    token = body["tokens_csv"].splitlines()[1].split(",")[2]
+    code = client.post(f"/courses/{cid}/assignments", json={
+        "title": "A", "description": "", "rubric": [{"name": "x", "weight": 100, "description": ""}],
+        "opens_at": (utcnow() - timedelta(days=2)).isoformat(),
+        "deadline": (utcnow() - timedelta(days=1)).isoformat(), "max_package_mb": 50}).json()["code"]
+    r = _upload(client, token, code)
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "DEADLINE_PASSED"
+
+
+def test_upload_package_too_large(client):
+    _login(client)
+    cid = client.post("/courses", json={"name": "C", "term": ""}).json()["id"]
+    body = client.post(f"/courses/{cid}/roster",
+                       json={"csv": "学号,姓名,小组\n1,甲,G\n"}).json()
+    token = body["tokens_csv"].splitlines()[1].split(",")[2]
+    code = client.post(f"/courses/{cid}/assignments", json={
+        "title": "A", "description": "", "rubric": [{"name": "x", "weight": 100, "description": ""}],
+        "opens_at": (utcnow() - timedelta(days=1)).isoformat(),
+        "deadline": (utcnow() + timedelta(days=1)).isoformat(), "max_package_mb": 1}).json()["code"]
+    big = os.urandom(2 * 1024 * 1024)
+    files = {"data.bin": big}
+    manifest = {
+        "format_version": "1", "assignment_code": code, "student_no": "1",
+        "client_version": "0.1.0", "submitted_at": "2026-07-19T08:00:00Z",
+        "files": [{"path": n, "sha256": hashlib.sha256(b).hexdigest()} for n, b in files.items()],
+    }
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False))
+        for n, b in files.items():
+            z.writestr(n, b)
+    r = client.post("/api/submissions",
+                    headers={"Authorization": f"Bearer {token}"},
+                    data={"manifest": json.dumps(manifest, ensure_ascii=False)},
+                    files={"file": ("p.zip", buf.getvalue(), "application/zip")})
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "PACKAGE_TOO_LARGE"
+
+
+def test_upload_zip_rejected(client):
+    token, code = _setup(client)
+    manifest = {
+        "format_version": "1", "assignment_code": code, "student_no": "1",
+        "client_version": "0.1.0", "submitted_at": "2026-07-19T08:00:00Z", "files": [],
+    }
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False))
+        z.writestr("../evil.txt", b"x")
+    r = client.post("/api/submissions",
+                    headers={"Authorization": f"Bearer {token}"},
+                    data={"manifest": json.dumps(manifest, ensure_ascii=False)},
+                    files={"file": ("p.zip", buf.getvalue(), "application/zip")})
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "ZIP_REJECTED"
+
+
+def test_upload_bad_manifest(client):
+    token, code = _setup(client)
+    r = client.post("/api/submissions",
+                    headers={"Authorization": f"Bearer {token}"},
+                    data={"manifest": "{not json"},
+                    files={"file": ("p.zip", b"", "application/zip")})
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "BAD_MANIFEST"
