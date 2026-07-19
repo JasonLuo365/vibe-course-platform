@@ -1,0 +1,7 @@
+{
+  "name": "vibe-submit-spike",
+  "version": "0.1.0",
+  "description": "spike: 验证插件 MCP 启动",
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/"
+}

@@ -1,0 +1,13 @@
+{
+  "vibe-submit-spike": {
+    "command": "uvx",
+    "args": [
+      "--from",
+      "E:/myprogramfiles/Vibe Coding 作业提交与智能评估系统/spikes/hello-pkg/dist/vibe_submit-0.1.0-py3-none-any.whl",
+      "vibe-submit-mcp"
+    ],
+    "env": {
+      "UV_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple"
+    }
+  }
+}

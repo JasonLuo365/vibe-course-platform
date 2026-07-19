@@ -1,6 +1,6 @@
 # Vibe Coding 作业提交与智能评估系统 — 设计文档
 
-- 日期：2026-07-17（2026-07-18 修订：学生端升级为 Codex Plugin + 课程 Git Marketplace 分发；二次修订：打包与 uvx 命令统一、MCP 工具契约、客户端路径表述、发布/回退策略、隐私与文件安全、版本协商、镜像配置、P0/P8 验证项；三次修订：submit_token Bearer 认证、status API 与 force 传输、submission_attempts 版本化、ZIP 安全校验、preview/retry 精确化、单进程 worker 模型）
+- 日期：2026-07-17（2026-07-18 修订：学生端升级为 Codex Plugin + 课程 Git Marketplace 分发；二次修订：打包与 uvx 命令统一、MCP 工具契约、客户端路径表述、发布/回退策略、隐私与文件安全、版本协商、镜像配置、P0/P8 验证项；三次修订：submit_token Bearer 认证、status API 与 force 传输、submission_attempts 版本化、ZIP 安全校验、preview/retry 精确化、单进程 worker 模型；2026-07-19 四次修订：§11 spike 全部结论回写——P1/P3/P4/P7/P8 成立、P0/P2/P5 部分成立、P6 不成立，bootstrap/发布/错误处理相应落定）
 - 状态：已通过分节评审，待实现
 - 定位：先作课程项目交付 MVP（2–3 周可演示），架构按可投产标准设计，预留演进空间
 
@@ -73,7 +73,7 @@ PyPI: vibe-submit 包
 
 - **Codex Plugin** = 纯包装与分发单元，本身几乎不含逻辑（声明 + 提示词 + 图标）；
 - **Skill**（`submit-homework`）= 告诉 Codex 何时建议提交、如何向学生解释将上传什么、失败如何引导；
-- **MCP server** = 核心的薄封装，暴露 5 个工具：`get_assignment_meta` / `preview_submission` / `submit_homework` / `retry_submission` / `get_submission_status`（契约见 §3.5）。以 `uvx --from vibe-submit==X.Y.Z vibe-submit-mcp` 启动——**单一 PyPI 分发 `vibe-submit`**，其 pyproject.toml 暴露 `vibe-submit` 与 `vibe-submit-mcp` 两个 console scripts；**核心版本钉死在插件内**，插件升级才带动核心升级（准确命令形式经 §11 P7 验证）；
+- **MCP server** = 核心的薄封装，暴露 5 个工具：`get_assignment_meta` / `preview_submission` / `submit_homework` / `retry_submission` / `get_submission_status`（契约见 §3.5）。以 `uvx --from vibe-submit==X.Y.Z vibe-submit-mcp` 启动（形式已经 §11 P7 spike 验证）——**单一 PyPI 分发 `vibe-submit`**，其 pyproject.toml 暴露 `vibe-submit` 与 `vibe-submit-mcp` 两个 console scripts；**核心版本钉死在插件内**，插件升级才带动核心升级；`.mcp.json` 支持 `env` 字段（0.144.6 实测，文档未列），用于注入局部 PyPI 镜像（§11 P1/P8）；
 - **CLI** = 同一核心的命令行入口（`submit / retry / uninstall / doctor`），兼兜底路径与诊断工具；
 - **核心模块**与任何宿主解耦，单测覆盖；未来加新宿主零改动核心。
 
@@ -82,15 +82,15 @@ PyPI: vibe-submit 包
 课程 README 提供一条命令（Windows PowerShell / macOS·Linux shell 各一），依次：
 
 1. 检测并无则安装 uv；如需 PyPI 镜像加速，**只配置在 vibe-submit 自身调用/局部范围内**，未经用户确认不得改动全局 pip/uv 配置（机制经 §11 P8 验证）；
-2. `codex plugin marketplace add <课程仓库URL>`（教师课前下发 URL）；**无 Codex CLI 的环境**（如仅装桌面端）由 bootstrap 安全维护个人 marketplace 文件或采用官方支持的其他发现方式（§11 P0）；
+2. 注册课程 marketplace：**有 Codex CLI 时** `codex plugin marketplace add <课程仓库URL>`；**无 CLI 时**（纯桌面端环境）bootstrap 以 TOML 解析安全写入 `config.toml [marketplaces.*]` 注册节（机制已经 §11 P0/P3 验证），并引导补装 codex CLI——桌面端插件目录不含自定义 marketplace 插件，无法经桌面 UI 安装；
 3. 交互询问学号与 **submit_token**（教师随花名册下发，每人一个），写入 `~/.vibe-submit/config.toml`；
 4. 自检（等价 `doctor`）并打印使用指引。
 
 | 客户端路径 | bootstrap 之后 |
 |---|---|
 | **A. Codex CLI** | `codex` → `/plugins` → 课程 tab → 安装；对话里说"提交作业"即可（首次调用时 uvx 拉包数秒） |
-| **B. ChatGPT 桌面应用 Codex 模式** | 同上（与 CLI 共享 `~/.codex` 配置；桌面端实际表现见 §11 P3 验证） |
-| **C. VS Code IDE 扩展（兼容路径，非 Plugin）** | bootstrap 把 `[mcp_servers.vibe-submit]`（同一 `uvx --from vibe-submit==X.Y.Z vibe-submit-mcp` 命令）写入 `~/.codex/config.toml`；IDE 会话内工具直接可用（见 §11 P4 验证） |
+| **B. ChatGPT 桌面应用 Codex 模式** | 同上（与 CLI 共享 `~/.codex` 配置，已经 §11 P3 验证） |
+| **C. VS Code IDE 扩展（兼容路径，非 Plugin）** | bootstrap 把 `[mcp_servers.vibe-submit]`（同一 `uvx --from vibe-submit==X.Y.Z vibe-submit-mcp` 命令）写入 `~/.codex/config.toml`；IDE 会话内工具直接可用（已经 §11 P4 验证） |
 
 **兜底**：任何集成失效时，`uvx vibe-submit submit --code <作业码>` 纯 CLI 永远可用。`uvx vibe-submit doctor` 诊断（uv 在 PATH？marketplace 已注册？MCP 能启动？服务器可达？）并尽量自动修复（如 PATH 失效时把配置中的 command 改写为 uvx 绝对路径）。
 
@@ -294,6 +294,7 @@ OpenAI 兼容客户端（DeepSeek / 通义 DashScope 兼容模式 / 智谱均可
 | 学生端 | uvx 首次拉包失败（网络） | 自动用已配镜像重试；提示检查后重跑 |
 | 学生端 | GUI 应用 PATH 陈旧找不到 uvx | `doctor` 检测并改写配置为 uvx 绝对路径 |
 | 学生端 | 插件 MCP 启动失败 | `doctor` 诊断；兜底 `uvx vibe-submit submit` 纯 CLI |
+| 学生端 | Codex Windows 沙箱助手缺失（0.144.6 实测：`codex-windows-sandbox-setup.exe` 不在安装目录，所有沙箱模式 shell 命令失败） | **MCP 调用不受影响**，提交通道正常；属 Codex 平台问题（Windows 支持官方标注 experimental），课程 FAQ 提示并跟踪官方修复 |
 | 服务器 | 上传校验失败 | 422 + 具体原因 |
 | 服务器 | token 无效/已重置 | 401，客户端提示重新 bootstrap 或联系教师重置 |
 | 服务器 | ZIP 安全校验失败（穿越/链接/超限/压缩比/哈希不符） | 422 + 具体原因，包不落盘 |
@@ -316,7 +317,7 @@ OpenAI 兼容客户端（DeepSeek / 通义 DashScope 兼容模式 / 智谱均可
 
 单 Dockerfile（FastAPI + SQLite + data 卷，**单进程运行，应用内 worker 消费 eval_jobs**）；环境变量：LLM 密钥、初始管理员、服务器地址（写进学生端 bootstrap 指引）。备份 = 定期拷贝 SQLite 文件 + `data/`（文档附 cron 示例）。HTTPS 由前置反代（Caddy/Nginx）或云平台负载均衡终止。
 
-**学生端发布**：单一 PyPI 分发 `vibe-submit`（pyproject.toml 暴露 `vibe-submit`、`vibe-submit-mcp` 两个 console scripts；包版本即 `.mcp.json` 中钉的核心版本）。课程 Marketplace 仓库（GitHub/Gitee）维护 `stable` 分支：每次发布提升插件 SemVer、打**不可变 tag**、更新仓库内"插件版本 ↔ 核心版本"映射表；升级 = `stable` 分支前进，学生 `codex plugin marketplace upgrade` 或重跑 bootstrap 获取；**回退 = 发布 SemVer 递增的新补丁版本（内容恢复至旧稳定内容），不重用旧版本号、不修改不可变 tag**。bootstrap 命令与仓库 URL 随课程 README 发布。
+**学生端发布**：单一 PyPI 分发 `vibe-submit`（pyproject.toml 暴露 `vibe-submit`、`vibe-submit-mcp` 两个 console scripts；包版本即 `.mcp.json` 中钉的核心版本）。课程 Marketplace 仓库（GitHub/Gitee）维护 `stable` 分支：每次发布提升插件 SemVer、打**不可变 tag**、更新仓库内"插件版本 ↔ 核心版本"映射表；升级 = `stable` 分支前进，学生 `codex plugin marketplace upgrade` 或重跑 bootstrap 获取；**回退 = 发布 SemVer 递增的新补丁版本（内容恢复至旧稳定内容），不重用旧版本号、不修改不可变 tag**。bootstrap 命令与仓库 URL 随课程 README 发布。**仓库布局要求（§11 P5 已验证）**：`.agents/plugins/marketplace.json` 必须位于**仓库根**（`marketplace add` 不支持子目录）；使用 `--sparse` 优化时必须同时给 `.agents/plugins` 与 `plugins` 两条路径。
 
 ## 10. 明确不做（YAGNI）
 
@@ -328,20 +329,20 @@ OpenAI 兼容客户端（DeepSeek / 通义 DashScope 兼容模式 / 智谱均可
 - 官方公共插件目录上架（审核周期不可控，学期后再议）
 - 插件 hooks 自动提醒提交（需用户信任审核，摩擦大）
 
-## 11. 原型验证清单（实施第一步，按风险排序）
+## 11. 原型验证（已于 2026-07-19 完成 spike，结果如下）
 
-以下能力官方文档未明确或存在平台差异，必须先以 spike 验证，再进入正式实现：
+完整证据见 `spikes/RESULTS.md`（分支 spike/p0-prototype）。结论：
 
-| # | 验证项 | 不成立时的备选 |
-|---|---|---|
-| P0 | 仅装 **Windows Codex 桌面端**（未单独安装 Codex CLI）的机器：是否存在可供 bootstrap 调用的 `codex plugin marketplace add`（或等效 CLI）；桌面端的 marketplace 发现机制是什么 | bootstrap 安全维护个人 marketplace 文件（`~/.agents/plugins/marketplace.json`，TOML/JSON 解析追加、不动其他内容），或采用官方支持的其他桌面端发现方式 |
-| P1 | 插件 `.mcp.json` 声明的 `uvx --from vibe-submit==X.Y.Z vibe-submit-mcp` 在 **Codex CLI** 会话中实际启动、工具可调；是否有 env 字段可传配置 | 插件退化为"Skill + 引导"，由 bootstrap 直接写 `config.toml` 注册 MCP（路径 C 变主路径） |
-| P2 | **Windows** 端到端：uv 安装 → PATH 生效 → CLI 插件 MCP 可用；重点验证 **GUI 启动的桌面应用 PATH 陈旧问题** | `doctor` 自动改写为 uvx 绝对路径；或仅承诺 CLI 路径 |
-| P3 | ChatGPT **桌面应用** Codex 模式是否读取 CLI 注册的 marketplace、插件安装后 MCP 生效 | 桌面用户走路径 C |
-| P4 | 手写 `config.toml` 的 `[mcp_servers]` 在 **VS Code Codex 扩展**当前版本生效 | 放弃 IDE 路径，仅支持 CLI/桌面 |
-| P5 | marketplace `git-subdir` source 的实际布局要求；**Gitee 等国内 git 托管**兼容性 | 用 GitHub + 镜像说明 |
-| P6 | （可选增强）作业模板仓库内 `.agents/plugins/marketplace.json` 是否自动出现在 `/plugins`、信任流程如何 | 放弃增强，只保留显式 add |
-| P7 | `uvx --from vibe-submit==X.Y.Z vibe-submit-mcp` 的准确形式（包名 ≠ 入口点）、钉版缓存与升级行为（换版本号后新环境必然生效） | 改用 `uv tool install` + 显式升级命令 |
-| P8 | PyPI 镜像加速的**局部化**方案：仅对 vibe-submit 的 uvx 调用注入 `UV_INDEX_URL`（子进程环境）或 uv 局部配置的可行性（关联 P1 env 字段验证）；任何全局配置必须经用户显式确认 | 未经确认保持默认源；确认后才写入用户级 uv 配置 |
+| # | 验证项 | 结论 | 落定决策 |
+|---|---|---|---|
+| P0 | 仅桌面端（无 CLI）的发现/安装 | **部分成立** | `marketplace add` 本质是写 `config.toml [marketplaces.*]`，bootstrap 可无 CLI 安全注册；但桌面端插件目录不含自定义 marketplace 插件，**无 CLI 时无法经桌面 UI 安装**——bootstrap 在无 CLI 环境引导补装 codex CLI（一条命令），手工填充缓存为文档化兜底（未实测） |
+| P1 | 插件 .mcp.json 启动 MCP；env 字段 | **成立** | 主路径定稿：`uvx --from vibe-submit==X.Y.Z vibe-submit-mcp`；**env 字段文档未列但 0.144.6 实测支持**，镜像经 env 注入 |
+| P2 | Windows 端到端；GUI PATH | **部分成立** | GUI PATH 陈旧未复现；**意外发现：`codex-windows-sandbox-setup.exe` 缺失致所有沙箱模式 shell 命令失败（MCP 不受影响）**——属平台问题，进课程 FAQ 并跟踪官方修复；干净用户装机流程上线前补测 |
+| P3 | 桌面端共享 CLI 配置 | **成立** | 桌面端与 CLI 同等待遇 |
+| P4 | IDE 扩展读 config.toml | **成立**（用户实测 pong） | 兼容路径定稿：bootstrap 写 `[mcp_servers.*]` |
+| P5 | git 分发；Gitee | **部分成立** | GitHub 全流程通过；**marketplace 必须根布局**（`.agents/plugins/marketplace.json` 在仓库根，子目录不支持）；`--sparse` 仅优化且须 `--sparse .agents/plugins --sparse plugins` 双路径；Gitee 上线前补验 |
+| P6 | 仓库级 marketplace 自动发现 | **不成立**（CLI 层） | 放弃自动发现，仅显式 add（bootstrap 完成） |
+| P7 | uvx --from 钉版与升级 | **成立** | 主路径定稿 |
+| P8 | 镜像局部化 | **成立** | 子进程 `UV_INDEX_URL`（作用域最小）；cwd 局部 uv.toml 备选 |
 
-**已由官方文档确认**（[plugins](https://learn.chatgpt.com/docs/plugins) / [build-plugins](https://learn.chatgpt.com/docs/build-plugins)，2026-07 查阅）：插件目录结构与 plugin.json 字段；`.mcp.json` 的 command/args 形式；Marketplace 四种 source（local / git / npm / 工作区）；`codex plugin marketplace add|list|upgrade|remove` 命令集；安装缓存路径 `~/.codex/plugins/cache/`；`/plugins` 浏览器与启用/禁用机制；插件在 CLI 与桌面应用可用、**在 IDE 扩展与移动端不可用**。
+**官方文档已确认**（[plugins](https://learn.chatgpt.com/docs/plugins) / [build-plugins](https://learn.chatgpt.com/docs/build-plugins)，2026-07 查阅）：插件目录结构与 plugin.json 字段；`.mcp.json` 的 command/args 形式；Marketplace source 类型；`codex plugin marketplace add|list|upgrade|remove` 命令集；安装缓存路径；`/plugins` 浏览器；插件在 CLI 与桌面应用可用、在 IDE 扩展与移动端不可用。
