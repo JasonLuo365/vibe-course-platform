@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}课程仪表盘 - Vibe 教师端{% endblock %}
+{% block content %}
+<h1>课程仪表盘</h1>
+
+{% for row in rows %}
+<section class="course-card">
+  <h2>{{ row.course.name }} <span class="term">{{ row.course.term }}</span></h2>
+  <table class="assign-table">
+    <thead>
+      <tr><th>作业</th><th>作业码</th><th>截止时间</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+      {% for a in row.assignments %}
+      <tr>
+        <td>{{ a.title }}</td>
+        <td><code>{{ a.code }}</code></td>
+        <td>{{ a.deadline }}</td>
+        <td>
+          <a href="/assignments/{{ a.id }}/board">总览板</a> ·
+          <a href="/assignments/{{ a.id }}/present">课堂展示</a> ·
+          <a href="/assignments/{{ a.id }}/export.csv">导出 CSV</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">暂无作业</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<p class="empty">暂无课程。请管理员通过 API 创建课程并导入花名册。</p>
+{% endfor %}
+{% endblock %}

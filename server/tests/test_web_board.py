@@ -244,3 +244,18 @@ class TestProgressAPI:
         assert body["total_submissions"] == 1
         assert body["evaluated"] == 1
         assert body["queued"] == 0
+
+
+class TestDashboard:
+    def test_root_redirects_to_login_when_unauthenticated(self, client):
+        r = client.get("/", follow_redirects=False)
+        assert r.status_code == 307
+        assert r.headers["location"] == "/login"
+
+    def test_dashboard_lists_course_and_assignment_links(self, client):
+        _setup_course_and_assignment(client)
+        r = client.get("/")
+        assert r.status_code == 200
+        assert "Vibe" in r.text
+        assert "总览板" in r.text
+        assert "/assignments/" in r.text and "/board" in r.text

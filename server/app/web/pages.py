@@ -23,9 +23,24 @@ def get_teacher_page(request: Request, db: Session = Depends(get_db)) -> models.
     return t
 
 
-@router.get("/", response_class=RedirectResponse)
-def root():
-    return RedirectResponse("/login")
+@router.get("/", response_class=HTMLResponse)
+def dashboard(request: Request, db: Session = Depends(get_db)):
+    tid = request.session.get("teacher_id")
+    if not tid:
+        return RedirectResponse("/login")
+    from ..main import templates
+    courses = db.query(models.Course).all()
+    assignments = db.query(models.Assignment).all()
+    rows = [
+        {
+            "course": c,
+            "assignments": [a for a in assignments if a.course_id == c.id],
+        }
+        for c in courses
+    ]
+    return templates.TemplateResponse(
+        request, "dashboard.html", {"rows": rows}
+    )
 
 
 @router.get("/login", response_class=HTMLResponse)
