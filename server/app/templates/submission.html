@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}{{ student.name }} - {{ assignment.title }} - 详情{% endblock %}
+
+{% block content %}
+<div class="detail-header">
+  <h1>{{ assignment.title }}</h1>
+  <p class="meta">
+    {{ student.student_no }} {{ student.name }} |
+    状态: {{ submission.status }}
+  </p>
+</div>
+
+<section class="grade-summary">
+  <div class="grades">
+    {% if ai_grade %}
+    <span class="badge ai">AI 原评: {{ ai_grade }}</span>
+    {% endif %}
+    {% if override and not override.stale %}
+    <span class="badge final">最终: {{ final_grade }}</span>
+    <span class="override-note">AI 原评 {{ ai_grade }} → 最终 {{ final_grade }}</span>
+    {% elif final_grade %}
+    <span class="badge final">最终: {{ final_grade }}</span>
+    {% endif %}
+  </div>
+</section>
+
+<div class="tabs">
+  <button class="tab-button active" data-tab="eval">评估</button>
+  <button class="tab-button" data-tab="timeline">会话时间线</button>
+  <button class="tab-button" data-tab="code">代码</button>
+  <button class="tab-button" data-tab="screenshots">截图</button>
+</div>
+
+<section class="tab-panel active" id="eval">
+  {% if evaluation %}
+  <div class="card">
+    <h2>等级</h2>
+    <p class="grade">{{ evaluation.grade }}</p>
+  </div>
+
+  <div class="card">
+    <h2>维度得分</h2>
+    <ul class="dimensions">
+      {% for d in evaluation.dimension_scores_json %}
+      <li>
+        <strong>{{ d.name }}</strong> ({{ d.weight }}%) — {{ d.score }} 分
+        <p class="rationale">{{ d.rationale }}</p>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>依据</h2>
+    <ul class="evidence">
+      {% for ev in evaluation.evidence_json %}
+      <li>
+        会话 {{ ev.session_id }}，第 {{ ev.turn }} 轮
+        <blockquote>"{{ ev.quote }}"</blockquote>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>综合理由</h2>
+    <p>{{ evaluation.rationale }}</p>
+  </div>
+
+  <div class="card">
+    <h2>反馈</h2>
+    <ul>
+      {% for fb in evaluation.feedback_json %}
+      <li>{{ fb }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>标记</h2>
+    {% if evaluation.flags_json %}
+    <ul>
+      {% for flag in evaluation.flags_json %}
+      <li>{{ flag }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>无</p>
+    {% endif %}
+  </div>
+  {% else %}
+  <p>暂无评估。</p>
+  {% endif %}
+
+  {% if evaluation %}
+  <div class="card">
+    <h2>当前调分</h2>
+    <p>AI 原评: {{ ai_grade }}</p>
+    {% if override %}
+    <p>当前调分等级: {{ override.final_grade }}{% if override.stale %}（基于旧提交）{% endif %}</p>
+    {% if override.comment %}<p>备注: {{ override.comment }}</p>{% endif %}
+    {% endif %}
+    <form method="post" action="/evaluations/{{ evaluation.id }}/override">
+      <label for="final_grade">最终等级</label>
+      <select id="final_grade" name="final_grade" required>
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+        <option value="D">D</option>
+        <option value="E">E</option>
+      </select>
+      <label for="comment">备注</label>
+      <input type="text" id="comment" name="comment" placeholder="调分原因">
+      <button type="submit">保存</button>
+    </form>
+  </div>
+  {% endif %}
+</section>
+
+<section class="tab-panel" id="timeline">
+  <div class="metrics-strip">
+    <span>会话 {{ metrics.sessions }}</span>
+    <span>轮数 {{ metrics.turns }}</span>
+    <span>用户轮 {{ metrics.user_turns }}</span>
+    <span>时长 {{ metrics.duration_min }} 分钟</span>
+    <span>纠错 {{ metrics.error_fix_cycles }}</span>
+    <span>文件 {{ metrics.files_touched }}</span>
+  </div>
+  {% for tl in timelines %}
+  <div class="card session">
+    <h3>会话: {{ tl.session_id }}</h3>
+    <div class="turns">
+      {% for turn in tl.turns %}
+      <div class="turn turn-{{ turn.kind }}">
+        <div class="turn-meta">{{ turn.kind }}{% if turn.ts %} — {{ turn.ts }}{% endif %}</div>
+        <pre>{{ turn.text }}</pre>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="tab-panel" id="code">
+  <div class="card">
+    <h2>文件树</h2>
+    <ul class="file-tree">
+      {% for f in code_files %}
+      <li><a href="/submissions/{{ submission.id }}/code?path={{ f[5:] }}">{{ f }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+<section class="tab-panel" id="screenshots">
+  <div class="screenshots">
+    {% for img in screenshots %}
+    <figure>
+      <img src="{{ media_prefix }}/{{ img }}" alt="{{ img }}">
+      <figcaption>{{ img }}</figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+</section>
+
+<a href="/assignments/{{ assignment.id }}/board" class="back-link">← 返回总览板</a>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  document.querySelectorAll('.tab-button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var tab = this.dataset.tab;
+      document.querySelectorAll('.tab-button').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+      this.classList.add('active');
+      document.getElementById(tab).classList.add('active');
+    });
+  });
+})();
+</script>
+{% endblock %}

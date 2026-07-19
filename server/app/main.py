@@ -1,12 +1,25 @@
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.templating import Jinja2Templates
 
 from .api import assignments, auth, courses, submissions
 from .config import Settings, get_settings
 from .errors import ApiError, api_error_handler
+from .web import PageAuthRequired
+from .web import pages as web_pages
+from .web import detail as web_detail
+from .web import present as web_present
+
+
+templates = Jinja2Templates(
+    directory=str(Path(__file__).parent / "templates"),
+)
 
 
 @asynccontextmanager
@@ -38,10 +51,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session_cookie=settings.session_cookie,
     )
     app.add_exception_handler(ApiError, api_error_handler)
+    app.add_exception_handler(
+        PageAuthRequired,
+        lambda req, exc: RedirectResponse(f"/login?next={exc.next_url}", status_code=302),
+    )
+
+    static_dir = Path(__file__).parent / "static"
+    static_dir.mkdir(exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
     app.include_router(auth.router)
     app.include_router(courses.router)
     app.include_router(assignments.router)
     app.include_router(submissions.router)
+    app.include_router(web_pages.router)
+    app.include_router(web_detail.router)
+    app.include_router(web_present.router)
 
     @app.get("/health")
     def health():

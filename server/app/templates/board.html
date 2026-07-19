@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}{{ assignment.title }} - 总览板 - Vibe{% endblock %}
+
+{% block content %}
+<div class="board-header">
+  <h1>{{ assignment.title }}</h1>
+  <p class="meta">作业码：{{ assignment.code }} | 截止时间：{{ assignment.deadline.isoformat() }}</p>
+</div>
+
+<section class="progress-section" data-aid="{{ assignment.id }}">
+  <div class="progress-bar">
+    <div class="progress-fill evaluated" style="width: 0%"></div>
+    <div class="progress-fill failed" style="width: 0%"></div>
+  </div>
+  <div class="progress-label">
+    提交 <span id="p-total">{{ progress.total_submissions }}</span> |
+    已评 <span id="p-evaluated">{{ progress.evaluated }}</span> |
+    失败 <span id="p-failed" class="failed-text">{{ progress.failed }}</span> |
+    队列 <span id="p-queued">{{ progress.queued }}</span>
+  </div>
+</section>
+
+<section class="matrix">
+  {% for row in groups %}
+  <div class="group-card">
+    <h2>{{ row.group.name if row.group else '未分组' }}</h2>
+    <div class="group-members">
+      {% for m in row.members %}
+      {% if m.submission %}
+      <a href="/submissions/{{ m.submission.id }}" class="member-cell-link">
+      <div class="member-cell status-{{ m.cell_status }}">
+      {% else %}
+      <div class="member-cell status-{{ m.cell_status }}">
+      {% endif %}
+        <div class="member-info">
+          <span class="student-no">{{ m.student.student_no }}</span>
+          <span class="student-name">{{ m.student.name }}</span>
+        </div>
+        <div class="badges">
+          <span class="badge status">{{ m.cell_status }}</span>
+          {% if m.evaluation %}
+          <span class="badge ai">AI: {{ m.evaluation.grade }}</span>
+          {% endif %}
+          {% if m.final_grade %}
+          <span class="badge final">最终: {{ m.final_grade }}</span>
+          {% endif %}
+          {% if m.stale %}
+          <span class="badge stale">[基于旧提交]</span>
+          {% endif %}
+          {% if m.cell_status == 'failed' %}
+          <span class="badge failed">失败</span>
+          {% endif %}
+        </div>
+      {% if m.submission %}
+      </div>
+      </a>
+      {% else %}
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const aid = document.querySelector('.progress-section').dataset.aid;
+
+  async function refresh() {
+    try {
+      const res = await fetch(`/api/assignments/${aid}/progress`);
+      if (!res.ok) return;
+      const p = await res.json();
+      document.getElementById('p-total').textContent = p.total_submissions;
+      document.getElementById('p-evaluated').textContent = p.evaluated;
+      document.getElementById('p-failed').textContent = p.failed;
+      document.getElementById('p-queued').textContent = p.queued;
+      const total = p.total_submissions || 1;
+      const bar = document.querySelector('.progress-bar');
+      bar.querySelector('.progress-fill.evaluated').style.width = (p.evaluated / total * 100) + '%';
+      bar.querySelector('.progress-fill.failed').style.width = (p.failed / total * 100) + '%';
+    } catch (e) {
+      // ignore polling errors
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 3000);
+})();
+</script>
+{% endblock %}
