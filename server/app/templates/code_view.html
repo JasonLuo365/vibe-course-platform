@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}{{ path }} - 代码查看 - Vibe{% endblock %}
+
+{% block content %}
+<div class="code-view-header">
+  <h1>{{ path }}</h1>
+  <a href="/submissions/{{ submission.id }}" class="back-link">← 返回详情</a>
+</div>
+
+<div class="card code-view">
+  {% if truncated %}
+  <p class="truncation-note">文件过大，仅显示前 100KB（共 {{ total_bytes }} 字节）。</p>
+  {% endif %}
+  <pre><code>{{ content }}</code></pre>
+</div>
+{% endblock %}

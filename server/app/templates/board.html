@@ -43,7 +43,10 @@
           <span class="badge ai">AI: {{ m.evaluation.grade }}</span>
           {% endif %}
           {% if m.final_grade %}
-          <span class="badge final">最终: {{ m.final_grade }}{% if m.stale %} [基于旧提交]{% endif %}</span>
+          <span class="badge final">最终: {{ m.final_grade }}</span>
+          {% endif %}
+          {% if m.stale %}
+          <span class="badge stale">[基于旧提交]</span>
           {% endif %}
           {% if m.cell_status == 'failed' %}
           <span class="badge failed">失败</span>

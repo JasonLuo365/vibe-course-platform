@@ -95,20 +95,11 @@
 
   {% if evaluation %}
   <div class="card">
-    <h2>调分</h2>
-    {% if history %}
-    <div class="override-history">
-      <h3>历史</h3>
-      <ul>
-        {% for ov in history %}
-        <li>
-          {{ ov.updated_at.isoformat() }} — {{ ov.final_grade }}
-          {% if ov.stale %}[旧提交]{% endif %}
-          {% if ov.comment %}({{ ov.comment }}){% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
+    <h2>当前调分</h2>
+    <p>AI 原评: {{ ai_grade }}</p>
+    {% if override %}
+    <p>当前调分等级: {{ override.final_grade }}{% if override.stale %}（基于旧提交）{% endif %}</p>
+    {% if override.comment %}<p>备注: {{ override.comment }}</p>{% endif %}
     {% endif %}
     <form method="post" action="/evaluations/{{ evaluation.id }}/override">
       <label for="final_grade">最终等级</label>
@@ -143,7 +134,7 @@
       {% for turn in tl.turns %}
       <div class="turn turn-{{ turn.kind }}">
         <div class="turn-meta">{{ turn.kind }}{% if turn.ts %} — {{ turn.ts }}{% endif %}</div>
-        <pre>{{ turn.text | safe }}</pre>
+        <pre>{{ turn.text }}</pre>
       </div>
       {% endfor %}
     </div>
@@ -156,7 +147,7 @@
     <h2>文件树</h2>
     <ul class="file-tree">
       {% for f in code_files %}
-      <li>{{ f }}</li>
+      <li><a href="/submissions/{{ submission.id }}/code?path={{ f[5:] }}">{{ f }}</a></li>
       {% endfor %}
     </ul>
   </div>

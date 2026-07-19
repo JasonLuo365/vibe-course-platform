@@ -146,7 +146,7 @@ class TestDetailPage:
         assert "B" in text
         assert "需求理解" in text
         assert "Implement a todo list" in text
-        assert "I'll create a FastAPI app." in text
+        assert "I&#39;ll create a FastAPI app." in text
         assert "main.py" in text
         assert "sc.png" in text
 
@@ -261,3 +261,30 @@ class TestGroupOverride:
         assert override.comment == "great"
         assert override.stale is False
         db.close()
+
+
+class TestCodeViewer:
+    def test_code_view_renders_file_and_rejects_traversal(self, client, settings):
+        _setup_course_and_assignment(client)
+        db = SessionLocal()
+        assignment = db.query(models.Assignment).one()
+        s1 = db.query(models.Student).order_by(models.Student.student_no).first()
+        from app.security import hash_token, new_submit_token
+        token = new_submit_token()
+        s1.submit_token_hash = hash_token(token)
+        db.commit()
+        db.close()
+
+        assert _upload(client, token, assignment.code, s1.student_no).status_code == 201
+
+        db = SessionLocal()
+        sub = db.query(models.Submission).filter_by(assignment_id=assignment.id, student_id=s1.id).one()
+        sid = sub.id
+        db.close()
+
+        r = client.get(f"/submissions/{sid}/code?path=main.py")
+        assert r.status_code == 200
+        assert "print(1)" in r.text
+
+        r = client.get(f"/submissions/{sid}/code?path=../main.py")
+        assert r.status_code == 404
