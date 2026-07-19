@@ -203,6 +203,23 @@ def _append_error_note(
     return new_messages
 
 
+def _clamp_quotes(data: dict) -> None:
+    """LLM 输出的超长 quote 截断至 200 字符并写入 flags（审计透明）。
+
+    提示词层面的硬性约束已要求 ≤200 字符，但真实模型仍会偶发超长；
+    证据定位依赖 session_id+turn，截断不损害可追溯性。
+    """
+    clamped = 0
+    for ev in data.get("evidence") or []:
+        q = ev.get("quote")
+        if isinstance(q, str) and len(q) > 200:
+            ev["quote"] = q[:197] + "..."
+            clamped += 1
+    if clamped:
+        flags = data.setdefault("flags", [])
+        flags.append(f"系统提示：{clamped} 条证据 quote 超长，已截断至 200 字符")
+
+
 def _evaluate_once(
     messages: list[dict[str, str]],
     schema: dict,
@@ -211,6 +228,7 @@ def _evaluate_once(
 ) -> EvalOut:
     raw = provider.complete(messages, json_schema=schema, max_tokens=4096)
     data = json.loads(raw)
+    _clamp_quotes(data)
     eval_out = EvalOut.model_validate(data)
     if timelines is not None:
         _validate_evidence(eval_out.evidence, timelines)

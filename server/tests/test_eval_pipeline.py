@@ -207,6 +207,17 @@ class TestEvaluateIndividual:
         last_user = _last_user_message(provider.calls[-1]["messages"])
         assert "JSON" in last_user or "json" in last_user
 
+    def test_overlong_quote_clamped_with_flag(self, timelines, code_digest_text, metrics, rubric):
+        import json as _json
+        raw = _json.loads(_valid_individual_json())
+        raw["evidence"][0]["quote"] = "长" * 500
+        provider = FakeLLMProvider(responses=[_json.dumps(raw, ensure_ascii=False)])
+        result = evaluate_individual(timelines, code_digest_text, metrics, rubric, provider)
+
+        assert len(result["evidence"][0]["quote"]) == 200
+        assert result["evidence"][0]["quote"].endswith("...")
+        assert any("截断" in f for f in result["flags"])
+
     def test_evidence_backcheck_fail_then_valid_retries_ok(
         self, timelines, code_digest_text, metrics, rubric
     ):
@@ -241,6 +252,8 @@ class TestEvaluateIndividual:
     def test_quote_too_long_then_valid_retries_ok(
         self, timelines, code_digest_text, metrics, rubric
     ):
+        # 语义已变更（E2E 调优）：超长 quote 不再触发重试，
+        # 而是截断至 200 字符并写入 flags。本测试保留以钉住该语义。
         bad = json.dumps(
             {
                 "grade": "A",
@@ -267,8 +280,10 @@ class TestEvaluateIndividual:
         )
         provider = FakeLLMProvider(responses=[bad, _valid_individual_json()])
         result = evaluate_individual(timelines, code_digest_text, metrics, rubric, provider)
-        assert result["grade"] == "B"
-        assert len(provider.calls) == 2
+        assert result["grade"] == "A"
+        assert len(provider.calls) == 1
+        assert len(result["evidence"][0]["quote"]) == 200
+        assert any("截断" in f for f in result["flags"])
 
     def test_all_retries_exhausted_raises_eval_error(
         self, timelines, code_digest_text, metrics, rubric
