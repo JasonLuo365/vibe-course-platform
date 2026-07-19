@@ -36,13 +36,11 @@ def upload(
     url = f"{cfg.server_url.rstrip('/')}/api/submissions"
 
     headers = {"Authorization": f"Bearer {cfg.submit_token}"}
-    data = {"force": "true" if force else "false"}
+    data = {
+        "manifest": json.dumps(manifest, ensure_ascii=False),
+        "force": "true" if force else "false",
+    }
     files = {
-        "manifest": (
-            "manifest.json",
-            json.dumps(manifest, ensure_ascii=False).encode("utf-8"),
-            "application/json",
-        ),
         "file": (
             Path(zip_path).name,
             Path(zip_path).read_bytes(),

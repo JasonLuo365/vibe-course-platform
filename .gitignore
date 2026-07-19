@@ -13,3 +13,4 @@ client/.pytest_tmp/
 client/.pytest_cache/
 server/data/
 server/.pytest-temp/
+server/.env
