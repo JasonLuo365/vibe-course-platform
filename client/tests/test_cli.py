@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 import pytest
 
 from vibe_submit.api import ApiError
@@ -305,10 +306,16 @@ def test_doctor_reports_config_status(monkeypatch, tmp_path):
 
     monkeypatch.setattr(cli, "load_config", lambda project_root=None, confirm=None: _make_config())
     monkeypatch.setattr(cli, "_codex_home", lambda: tmp_path / ".codex")
-    monkeypatch.setattr(cli, "get_status", lambda cfg, code: {"status": "ok"})
     (tmp_path / ".codex" / "sessions").mkdir(parents=True)
+
+    def handler(request: httpx.Request):
+        assert str(request.url).endswith("/health")
+        return httpx.Response(200, json={"status": "ok"})
+
+    monkeypatch.setattr(cli, "_health_transport", httpx.MockTransport(handler))
 
     captured = _run(["doctor"], monkeypatch)
     assert captured["code"] == 0
     assert "config" in captured["stdout"].lower()
     assert "codex" in captured["stdout"].lower()
+    assert "server" in captured["stdout"].lower()

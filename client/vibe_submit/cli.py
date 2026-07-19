@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import httpx
 import importlib.metadata
 import os
 import sys
@@ -11,12 +12,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
-from .api import ApiError, get_meta, get_status, upload
+from .api import ApiError, get_meta, upload
 from .collect import FileEntry, collect_project
 from .config import Config, ConfigError, ServerChangeRequired, load_config
 from .outbox import get_outbox, get_outbox_config, list_outbox, save_outbox
 from .package import build_package
 from .sessions import find_sessions, session_index
+
+# Transport seam for tests that mock the server's /health endpoint.
+_health_transport = None
 
 
 def _client_version() -> str:
@@ -258,22 +262,40 @@ def _cmd_doctor(_args: argparse.Namespace) -> int:
         ok = False
 
     if cfg:
-        try:
-            get_status(cfg, "health-check")
+        reachable, reason = _check_server(cfg.server_url)
+        if reachable:
             print("[OK] Server reachable")
-        except ApiError as exc:
-            if exc.status == 404:
-                # A 404 means the server is up but endpoint may differ.
-                print("[OK] Server reachable (health endpoint returned 404)")
-            else:
-                print(f"[FAIL] Server check: {exc}")
-                ok = False
-        except Exception as exc:
-            print(f"[FAIL] Server check: {exc}")
+        else:
+            print(f"[FAIL] Server check: {reason}")
             ok = False
 
     print(f"[INFO] Client version: {_client_version()}")
     return 0 if ok else 1
+
+
+def _check_server(server_url: str) -> tuple[bool, str]:
+    """Probe the server's health endpoint."""
+    url = f"{server_url.rstrip('/')}/health"
+    try:
+        with httpx.Client(timeout=10, transport=_health_transport) as client:
+            response = client.get(url)
+    except httpx.HTTPError as exc:
+        return False, str(exc)
+    except Exception as exc:
+        return False, str(exc)
+
+    if response.status_code != 200:
+        return False, f"HTTP {response.status_code}"
+
+    try:
+        data = response.json()
+    except Exception as exc:
+        return False, f"invalid JSON: {exc}"
+
+    if data.get("status") != "ok":
+        return False, f"unexpected status: {data!r}"
+
+    return True, ""
 
 
 def _build_parser() -> argparse.ArgumentParser:
