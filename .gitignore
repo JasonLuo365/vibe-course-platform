@@ -7,5 +7,8 @@ server/.pytest_tmp/
 server/.pytest_cache/
 **/__pycache__/
 *.pyc
+client/.venv/
+client/.pytest_tmp/
+client/.pytest_cache/
 server/data/
 server/.pytest-temp/
