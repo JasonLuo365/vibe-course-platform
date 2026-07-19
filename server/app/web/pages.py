@@ -23,6 +23,11 @@ def get_teacher_page(request: Request, db: Session = Depends(get_db)) -> models.
     return t
 
 
+@router.get("/", response_class=RedirectResponse)
+def root():
+    return RedirectResponse("/login")
+
+
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: str = "/"):
     from ..main import templates
