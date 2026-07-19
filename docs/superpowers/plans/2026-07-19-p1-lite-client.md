@@ -21,7 +21,7 @@
 - outbox：`~/.vibe-submit/outbox/{outbox_id}/`（zip+meta.json）。
 - 日志不记对话正文/秘密，仅计数与错误。
 
-## Task 1: 核心采集（sessions + collect + package）
+### Task 1: 核心采集（sessions + collect + package）
 
 **Files:** client/pyproject.toml、client/vibe_submit/__init__.py、client/vibe_submit/errors.py、client/vibe_submit/sessions.py、client/vibe_submit/collect.py、client/vibe_submit/package.py、client/tests/conftest.py、client/tests/test_sessions.py、client/tests/test_collect.py、client/tests/test_package.py
 
@@ -35,7 +35,7 @@
 
 **测试点：** cwd 匹配/不匹配、since 过滤、坏行容错、meta 缺失跳过；denylist 命中并列入 skipped、排除目录、符号链接不收集、超 10MB→CollectError、总数→CollectError；package 的 zip 含 manifest/sessions/code/screenshots、manifest sha256 与实际一致、stats 正确。
 
-## Task 2: 上传客户端 + outbox + config + CLI
+### Task 2: 上传客户端 + outbox + config + CLI
 
 **Files:** client/vibe_submit/config.py、client/vibe_submit/api.py、client/vibe_submit/outbox.py、client/vibe_submit/cli.py、client/tests/test_api.py、client/tests/test_outbox.py、client/tests/test_cli.py
 
@@ -48,7 +48,7 @@
 
 **测试点：** MockTransport 模拟 201/401/404/409/422/426/网络错误；outbox save/list/retry；CLI submit 全流程（mock 各模块）确认与非交互 --yes；409→--force 路径。
 
-## Task 3: MCP server（5 工具，确认强制）
+### Task 3: MCP server（5 工具，确认强制）
 
 **Files:** client/vibe_submit/mcp_server.py、client/vibe_submit/preview.py、client/tests/test_mcp_tools.py
 
@@ -59,7 +59,7 @@
 
 **测试点：** preview 创建/过期/根不符；submit_homework：无 preview→拒绝、confirmed=False→拒绝、成功路径（mock upload）、409→force_confirmed=False 拒绝 + True 成功；retry_submission 无参只读、带 id 执行；get_assignment_meta/get_submission_status 透传（mock api 层）。
 
-## Task 4: 端到端串联（mock 服务器全链路）+ 回归
+### Task 4: 端到端串联（mock 服务器全链路）+ 回归
 
 **Files:** client/tests/test_e2e.py
 
