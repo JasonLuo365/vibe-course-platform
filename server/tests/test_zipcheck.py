@@ -1,6 +1,4 @@
 import hashlib
-import io
-import json
 import zipfile
 
 import pytest
@@ -11,9 +9,9 @@ from app.services.zipcheck import ZipReject, safe_extract, validate_zip
 S = Settings()
 
 
-def _mk_zip(tmp_path, entries: dict[str, bytes], name="p.zip", symlink=None) -> str:
+def _mk_zip(tmp_path, entries: dict[str, bytes], name="p.zip", symlink=None, compression=zipfile.ZIP_DEFLATED) -> str:
     p = tmp_path / name
-    with zipfile.ZipFile(p, "w") as z:
+    with zipfile.ZipFile(p, "w", compression=compression) as z:
         for n, b in entries.items():
             z.writestr(n, b)
         if symlink:
@@ -87,3 +85,31 @@ def test_manifest_set_and_hash(tmp_path):
     bad[0]["sha256"] = "0" * 64
     with pytest.raises(ZipReject):  # 哈希不符
         validate_zip(z, bad, S)
+
+
+def test_total_uncompressed_limit(tmp_path):
+    from app.config import Settings
+
+    s = Settings(max_uncompressed_mb=0)  # 任何非空包都超限
+    z = _mk_zip(tmp_path, GOOD)
+    files = _manifest({k: v for k, v in GOOD.items() if k != "manifest.json"})
+    with pytest.raises(ZipReject):
+        validate_zip(z, files, s)
+
+
+def test_compression_ratio_rejected(tmp_path):
+    data = b"0" * (1024 * 1024)  # 高可压缩数据，压缩比远超 100
+    z = _mk_zip(tmp_path, {"bomb.bin": data, "manifest.json": b"{}"})
+    files = _manifest({"bomb.bin": data})
+    with pytest.raises(ZipReject):
+        validate_zip(z, files, S)
+
+
+def test_safe_extract_containment(tmp_path):
+    p = tmp_path / "esc.zip"
+    import zipfile as zf_mod
+
+    with zf_mod.ZipFile(p, "w") as z:
+        z.writestr("../escape.txt", b"x")  # zipfile 允许写入，safe_extract 必须拒绝
+    with pytest.raises(ZipReject):
+        safe_extract(str(p), str(tmp_path / "out"))
