@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}教师登录 - Vibe{% endblock %}
+
+{% block content %}
+<div class="login-card">
+  <h1>教师登录</h1>
+  <form id="login-form">
+    <input type="hidden" id="next-url" value="{{ next_url }}">
+    <label for="username">用户名</label>
+    <input type="text" id="username" name="username" required autofocus>
+
+    <label for="password">密码</label>
+    <input type="password" id="password" name="password" required>
+
+    <button type="submit">登录</button>
+  </form>
+  <p id="login-error" class="error"></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById('login-form');
+  const errorEl = document.getElementById('login-error');
+  const nextUrl = document.getElementById('next-url').value || '/';
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    errorEl.textContent = '';
+    const res = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      }),
+    });
+    if (res.ok) {
+      window.location.href = nextUrl;
+    } else {
+      const data = await res.json().catch(() => ({}));
+      errorEl.textContent = data.error?.message || '登录失败';
+    }
+  });
+})();
+</script>
+{% endblock %}
+

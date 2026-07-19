@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}课程仪表盘 - Vibe 教师端{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">教师工作台</p>
+    <h1>课程仪表盘</h1>
+    <p class="page-summary">统一查看课程、作业进度与课堂展示入口。</p>
+  </div>
+</div>
+
+{% for row in rows %}
+<section class="course-card">
+  <div class="course-card-head">
+    <h2>{{ row.course.name }} <span class="term">{{ row.course.term }}</span></h2>
+    <span class="course-tag">{{ row.assignments|length }} 项作业</span>
+  </div>
+  <table class="assign-table">
+    <thead>
+      <tr><th>作业</th><th>作业码</th><th>截止时间</th><th>操作</th></tr>
+    </thead>
+    <tbody>
+      {% for a in row.assignments %}
+      <tr>
+        <td>{{ a.title }}</td>
+        <td><code>{{ a.code }}</code></td>
+        <td>{{ a.deadline }}</td>
+        <td class="actions">
+          <a class="text-link" href="/assignments/{{ a.id }}/board">总览与评审</a>
+          <a class="text-link" href="/assignments/{{ a.id }}/present">作品展示</a>
+          <a class="text-link" href="/assignments/{{ a.id }}/review-present">评价展示</a>
+          <a class="text-link" href="/assignments/{{ a.id }}/export.csv">导出反馈表</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty">暂无作业</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<p class="empty">暂无课程。请先创建课程、导入花名册并创建作业。</p>
+{% endfor %}
+{% endblock %}
+

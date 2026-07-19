@@ -1,0 +1,24 @@
+services:
+  server:
+    build: ./server
+    ports:
+      # Caddy on the host terminates HTTPS. Do not expose this HTTP port publicly.
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - vibe-data:/data
+    # 首次部署前请先：cp server/.env.example server/.env，并填入你的 LLM API key。
+    env_file: ./server/.env
+    environment:
+      VIBE_DATA_DIR: /data
+      VIBE_DATABASE_URL: sqlite:////data/app.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  vibe-data:
+

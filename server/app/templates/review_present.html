@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ assignment.title }} - 评价展示 - Vibe</title>
+  <link rel="stylesheet" href="/static/present.css">
+</head>
+<body class="review-body">
+  <header class="present-header"><span class="present-mode review-mode">评价展示</span><span>{{ assignment.title }}</span></header>
+  <main class="review-stage">
+    {% for group in groups %}
+    <section class="review-group">
+      <div class="review-group-head">
+        <div><p class="work-label">小组</p><h1>{{ group.group_name }}</h1></div>
+        {% if group.group_final_grade %}<span class="review-grade">{{ group.group_final_grade }}</span>{% endif %}
+      </div>
+      {% if group.group_rationale %}<p class="group-rationale">{{ group.group_rationale }}</p>{% endif %}
+      <div class="review-members">
+        {% for member in group.members %}
+        <article class="review-member">
+          <div class="review-member-head"><div><strong>{{ member.name }}</strong><span>{{ member.student_no }}</span></div><span class="review-grade small">{{ member.final_grade or '待评' }}</span></div>
+          <p class="review-status">{{ member.status }}</p>
+          {% if member.rationale %}<div><h2>评价</h2><p>{{ member.rationale }}</p></div>{% endif %}
+          {% if member.feedback %}<div><h2>改进建议</h2><ul>{% for item in member.feedback %}<li>{{ item }}</li>{% endfor %}</ul></div>{% endif %}
+          {% if member.teacher_note %}<div class="teacher-note"><h2>教师备注</h2><p>{{ member.teacher_note }}</p></div>{% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% else %}<p class="review-empty">暂时没有可展示的评价。</p>{% endfor %}
+  </main>
+</body>
+</html>
+

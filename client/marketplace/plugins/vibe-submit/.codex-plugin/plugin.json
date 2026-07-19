@@ -1,0 +1,23 @@
+{
+  "name": "vibe-submit",
+  "version": "0.1.0",
+  "description": "Preview and submit Vibe Coding coursework from Codex.",
+  "author": {
+    "name": "Vibe Course Team"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Vibe \u4f5c\u4e1a\u63d0\u4ea4",
+    "shortDescription": "\u9884\u89c8\u5e76\u63d0\u4ea4 Vibe Coding \u8bfe\u7a0b\u4f5c\u4e1a",
+    "longDescription": "\u91c7\u96c6\u672c\u5730 Codex \u4f1a\u8bdd\u3001\u9879\u76ee\u4ee3\u7801\u548c\u622a\u56fe\uff1b\u53ea\u5728\u4f60\u660e\u786e\u786e\u8ba4\u540e\u63d0\u4ea4\u3002",
+    "developerName": "Vibe Course Team",
+    "category": "Education",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "\u5e2e\u6211\u9884\u89c8\u672c\u6b21\u4f5c\u4e1a\u5c06\u4e0a\u4f20\u7684\u5185\u5bb9\u3002",
+      "\u6211\u786e\u8ba4\u540e\uff0c\u8bf7\u63d0\u4ea4\u8fd9\u6b21 Vibe Coding \u4f5c\u4e1a\u3002"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}
+

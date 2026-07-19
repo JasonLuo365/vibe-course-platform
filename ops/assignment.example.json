@@ -1,0 +1,13 @@
+{
+  "title": "Vibe Coding 课堂作业",
+  "description": "请使用 Codex 完成项目，并通过插件提交。",
+  "rubric": [
+    {"name": "功能完成度", "weight": 40, "description": "核心功能可运行"},
+    {"name": "代码质量", "weight": 30, "description": "结构清晰、易维护"},
+    {"name": "过程与迭代", "weight": 30, "description": "合理使用 Codex 并记录迭代"}
+  ],
+  "opens_at": "2026-07-20T08:00:00+08:00",
+  "deadline": "2026-07-20T23:59:00+08:00",
+  "max_package_mb": 50
+}
+

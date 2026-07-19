@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% macro render_tree(node, submission_id, selected_path) %}
+  {% for name, child in node.dirs|dictsort %}
+  <details class="tree-directory" open>
+    <summary>▾ <span>📁</span>{{ name }}</summary>
+    <div class="tree-children">{{ render_tree(child, submission_id, selected_path) }}</div>
+  </details>
+  {% endfor %}
+  {% for item in node.files %}
+  <a class="tree-file {% if item.path == selected_path %}selected{% endif %}" href="/submissions/{{ submission_id }}?file={{ item.url_path }}#code"><span>⌑</span>{{ item.name }}</a>
+  {% endfor %}
+{% endmacro %}
+
+{% block title %}{{ student.name }} · {{ assignment.title }}{% endblock %}
+
+{% block content %}
+<section class="detail-header">
+  <div><p class="eyebrow">作业评阅</p><h1>{{ assignment.title }}</h1><p class="meta">{{ student.student_no }} · {{ student.name }} · 状态：{{ submission.status }}</p></div>
+  <div class="badges">{% if ai_grade %}<span class="badge ai">AI 原评：{{ ai_grade }}</span>{% endif %}{% if final_grade %}<span class="badge final">最终：{{ final_grade }}</span>{% endif %}</div>
+</section>
+
+<div class="tabs" role="tablist">
+  <button class="tab-button active" data-tab="eval">评估</button><button class="tab-button" data-tab="timeline">会话记录</button><button class="tab-button" data-tab="code">代码</button><button class="tab-button" data-tab="screenshots">截图</button>
+</div>
+
+<section class="tab-panel active" id="eval">
+  {% if evaluation %}
+  <div class="review-grid"><div class="card grade-card"><p>AI 评估等级</p><strong class="grade">{{ evaluation.grade }}</strong></div><div class="card"><h2>综合理由</h2><p>{{ evaluation.rationale }}</p></div></div>
+  <div class="card"><h2>维度得分</h2><ul class="dimensions">{% for d in evaluation.dimension_scores_json %}<li><strong>{{ d.name }}</strong> <span>{{ d.score }} 分 · 权重 {{ d.weight }}%</span><p class="rationale">{{ d.rationale }}</p></li>{% endfor %}</ul></div>
+  <div class="card"><h2>反馈建议</h2><ul>{% for fb in evaluation.feedback_json %}<li>{{ fb }}</li>{% endfor %}</ul></div>
+  <div class="card"><h2>教师调分</h2><form method="post" action="/evaluations/{{ evaluation.id }}/override"><label for="final_grade">最终等级</label><select id="final_grade" name="final_grade" required>{% for grade in ['A','B','C','D','E'] %}<option value="{{ grade }}" {% if final_grade == grade %}selected{% endif %}>{{ grade }}</option>{% endfor %}</select><label for="comment">调分备注</label><input type="text" id="comment" name="comment" placeholder="说明调整原因"><button type="submit" class="button">保存调分</button></form></div>
+  {% else %}<div class="card empty-state">暂无评估结果</div>{% endif %}
+</section>
+
+<section class="tab-panel" id="timeline">
+  <div class="metrics-strip"><span>会话 {{ metrics.sessions }}</span><span>总轮数 {{ metrics.turns }}</span><span>学生提示 {{ metrics.user_turns }}</span><span>时长 {{ metrics.duration_min }} 分钟</span><span>纠错 {{ metrics.error_fix_cycles }}</span><span>文件 {{ metrics.files_touched }}</span></div>
+  <div class="conversation-list">
+    {% for item in conversations %}
+    <details class="conversation-card">
+      <summary><span class="conversation-index">{{ loop.index }}</span><span class="conversation-prompt"><b>提示词</b>{{ item.prompt|truncate(110, true, '…') }}</span><span class="conversation-time">{{ item.prompt_ts or '' }}</span><span class="chevron">⌄</span></summary>
+      <div class="conversation-answer"><div class="answer-label">Codex 最终回答</div>{% if item.answer %}<pre>{{ item.answer }}</pre>{% else %}<p>该提示词后没有可展示的最终回答。</p>{% endif %}</div>
+    </details>
+    {% else %}<div class="card empty-state">未找到可展示的学生提示词。</div>{% endfor %}
+  </div>
+</section>
+
+<section class="tab-panel" id="code">
+  <div class="code-workspace">
+    <aside class="code-explorer"><div class="explorer-title">资源管理器 <span>{{ code_files|length }}</span></div><div class="tree-root">{{ render_tree(code_tree, submission.id, selected_code.path if selected_code else '') }}</div></aside>
+    <article class="code-preview">{% if selected_code %}<div class="code-preview-header"><span>{{ selected_code.path }}</span><span>{{ selected_code.total_bytes }} bytes</span></div>{% if selected_code.truncated %}<p class="truncation-note">文件过大，仅显示前 100KB。</p>{% endif %}<pre><code>{{ selected_code.content }}</code></pre>{% else %}<div class="empty-state">没有可展示的代码文件。</div>{% endif %}</article>
+  </div>
+</section>
+
+<section class="tab-panel" id="screenshots"><div class="screenshots">{% for img in screenshots %}<figure><img src="{{ media_prefix }}/{{ img }}" alt="{{ img }}"><figcaption>{{ img }}</figcaption></figure>{% else %}<div class="empty-state">没有提交截图。</div>{% endfor %}</div></section>
+<a href="/assignments/{{ assignment.id }}/board" class="back-link">← 返回作业总览</a>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function activateTab(tab, updateAddress) {
+  var button = document.querySelector('.tab-button[data-tab="' + tab + '"]');
+  var panel = document.getElementById(tab);
+  if (!button || !panel) return;
+  document.querySelectorAll('.tab-button').forEach(function (item) { item.classList.toggle('active', item === button); });
+  document.querySelectorAll('.tab-panel').forEach(function (item) { item.classList.toggle('active', item === panel); });
+  if (updateAddress) history.replaceState(null, '', window.location.pathname + window.location.search + '#' + tab);
+}
+document.querySelectorAll('.tab-button').forEach(function (button) { button.addEventListener('click', function () { activateTab(button.dataset.tab, true); }); });
+activateTab(window.location.hash.slice(1), false);
+</script>
+{% endblock %}
+

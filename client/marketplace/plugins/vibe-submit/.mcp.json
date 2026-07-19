@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "vibe-submit": {
+    "command": "uvx",
+    "args": [
+      "--from",
+      "git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.0#subdirectory=packages/vibe-submit",
+      "vibe-submit-mcp"
+    ]
+    }
+  }
+}
+
