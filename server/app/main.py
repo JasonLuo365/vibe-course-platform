@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
-from .api import auth
+from .api import auth, courses
 from .config import Settings, get_settings
 from .errors import ApiError, api_error_handler
 
@@ -22,6 +22,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                        session_cookie=settings.session_cookie)
     app.add_exception_handler(ApiError, api_error_handler)
     app.include_router(auth.router)
+    app.include_router(courses.router)
 
     @app.get("/health")
     def health():
