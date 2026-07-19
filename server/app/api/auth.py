@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..db import get_db
-from ..deps import get_teacher
+from ..deps import get_student, get_teacher
 from ..errors import ApiError
 from ..security import verify_password
 
@@ -34,3 +34,8 @@ def logout(request: Request):
 @router.get("/api/whoami")
 def whoami(t: models.Teacher = Depends(get_teacher)):
     return {"username": t.username, "display_name": t.display_name}
+
+
+@router.get("/api/student/ping")
+def student_ping(s: models.Student = Depends(get_student)):
+    return {"student_no": s.student_no, "name": s.name}

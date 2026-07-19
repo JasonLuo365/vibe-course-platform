@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app import deps
 from app.config import Settings
 from app.main import create_app
 
@@ -16,6 +17,7 @@ def settings(tmp_path):
 
 @pytest.fixture()
 def client(settings):
+    deps._hits.clear()
     app = create_app(settings)
     with TestClient(app) as c:
         yield c
