@@ -33,9 +33,7 @@ def upload(
     enabled and cannot be disabled.
     """
     assignment_code = manifest["assignment_code"]
-    url = (
-        f"{cfg.server_url.rstrip('/')}/api/assignments/{assignment_code}/submissions"
-    )
+    url = f"{cfg.server_url.rstrip('/')}/api/submissions"
 
     headers = {"Authorization": f"Bearer {cfg.submit_token}"}
     data = {"force": "true" if force else "false"}
@@ -67,7 +65,7 @@ def get_status(cfg: Config, assignment_code: str, transport=None) -> dict:
     """Fetch the latest submission status for an assignment."""
     url = (
         f"{cfg.server_url.rstrip('/')}/"
-        f"api/assignments/{assignment_code}/submissions/status"
+        f"api/submissions/status?assignment_code={assignment_code}"
     )
     return _request("GET", url, cfg, transport=transport)
 

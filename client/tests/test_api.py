@@ -116,7 +116,7 @@ def test_network_error_maps_to_api_error(cfg):
 
 def test_get_status_success(cfg):
     def handler(request: httpx.Request):
-        assert str(request.url).endswith("/api/assignments/HW01/submissions/status")
+        assert str(request.url).endswith("/api/submissions/status?assignment_code=HW01")
         return httpx.Response(200, json={"status": "graded"})
 
     result = get_status(cfg, "HW01", transport=httpx.MockTransport(handler))
