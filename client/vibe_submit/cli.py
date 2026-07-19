@@ -14,7 +14,7 @@ from pathlib import Path
 from . import __version__
 from .api import ApiError, get_meta, upload
 from .collect import FileEntry, collect_project
-from .config import Config, ConfigError, ServerChangeRequired, load_config
+from .config import Config, ConfigError, ServerChangeRequired, _codex_home, load_config
 from .outbox import get_outbox, get_outbox_config, list_outbox, save_outbox
 from .package import build_package
 from .sessions import find_sessions, session_index
@@ -29,13 +29,6 @@ def _client_version() -> str:
         return importlib.metadata.version("vibe-submit")
     except importlib.metadata.PackageNotFoundError:
         return __version__
-
-
-def _codex_home() -> Path:
-    home = os.environ.get("VIBE_CODEX_HOME")
-    if home:
-        return Path(home)
-    return Path.home() / ".codex"
 
 
 def _parse_iso(value: str) -> datetime:
@@ -325,6 +318,41 @@ def _build_parser() -> argparse.ArgumentParser:
 
     doctor_parser = sub.add_parser("doctor", help="Check client health")
     doctor_parser.set_defaults(func=_cmd_doctor)
+
+    from .bootstrap import DEFAULT_INDEX_URL, _cmd_bootstrap
+
+    bootstrap_parser = sub.add_parser("bootstrap", help="Set up this machine for submissions")
+    bootstrap_parser.add_argument(
+        "--index-url",
+        default=DEFAULT_INDEX_URL,
+        help="PyPI index URL used while bootstrapping uv (default: Tsinghua mirror)",
+    )
+    bootstrap_parser.add_argument(
+        "--marketplace-url",
+        required=True,
+        help="Codex marketplace URL to register",
+    )
+    bootstrap_parser.add_argument(
+        "--marketplace-name",
+        default=None,
+        help="Marketplace name (default: derived from URL)",
+    )
+    bootstrap_parser.add_argument(
+        "--student-no",
+        default=None,
+        help="Student number (non-interactive mode)",
+    )
+    bootstrap_parser.add_argument(
+        "--token",
+        default=None,
+        help="Submit token (non-interactive mode)",
+    )
+    bootstrap_parser.add_argument(
+        "--server",
+        default=None,
+        help="Server URL (non-interactive mode)",
+    )
+    bootstrap_parser.set_defaults(func=_cmd_bootstrap)
 
     return parser
 

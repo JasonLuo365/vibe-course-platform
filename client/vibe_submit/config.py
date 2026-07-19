@@ -21,6 +21,13 @@ class Config:
     source: str
 
 
+def _codex_home() -> Path:
+    home = os.environ.get("VIBE_CODEX_HOME")
+    if home:
+        return Path(home)
+    return Path.home() / ".codex"
+
+
 def _config_dir() -> Path:
     """Return the vibe-submit home directory."""
     home = os.environ.get("VIBE_SUBMIT_HOME")
