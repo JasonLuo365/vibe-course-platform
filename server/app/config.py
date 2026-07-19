@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     max_compression_ratio: float = 100.0
     rate_limit_per_minute: int = 60
 
+    # LLM / worker settings
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    llm_model: str = "deepseek-chat"
+    worker_enabled: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

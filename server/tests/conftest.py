@@ -12,6 +12,7 @@ def settings(tmp_path):
         data_dir=str(tmp_path / "data"),
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
         session_secret="test-secret",
+        worker_enabled=False,
     )
 
 
