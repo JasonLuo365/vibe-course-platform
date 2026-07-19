@@ -116,3 +116,21 @@ async def submit(
                 os.unlink(tmp.name)
         except OSError:
             pass
+
+
+@router.get("/api/submissions/status")
+def submission_status(assignment_code: str,
+                      student: models.Student = Depends(get_student),
+                      db: Session = Depends(get_db)):
+    a = db.query(models.Assignment).filter_by(code=assignment_code).first()
+    if not a:
+        raise ApiError(404, "NOT_FOUND", "作业码不存在")
+    sub = db.query(models.Submission).filter_by(
+        assignment_id=a.id, student_id=student.id).first()
+    if not sub or not sub.current_attempt_id:
+        return {"submission_id": 0, "assignment_code": assignment_code, "status": "none",
+                "submitted_at": "", "size_bytes": 0, "error": None}
+    att = db.get(models.SubmissionAttempt, sub.current_attempt_id)
+    return {"submission_id": sub.id, "assignment_code": assignment_code,
+            "status": sub.status, "submitted_at": att.submitted_at.isoformat(),
+            "size_bytes": att.size_bytes, "error": sub.error}
