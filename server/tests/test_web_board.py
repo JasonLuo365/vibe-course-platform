@@ -153,6 +153,44 @@ class TestBoardPage:
         assert "B" in r.text
         assert "AI" in r.text or "最终" in r.text
 
+    def test_board_stale_override_falls_back_to_ai_grade(self, client, settings):
+        _setup_course_and_assignment(client)
+        db = SessionLocal()
+        assignment = db.query(models.Assignment).one()
+        aid = assignment.id
+        s1 = db.query(models.Student).order_by(models.Student.student_no).first()
+        from app.security import hash_token, new_submit_token
+        token = new_submit_token()
+        s1.submit_token_hash = hash_token(token)
+        teacher = db.query(models.Teacher).one()
+        db.commit()
+        db.close()
+
+        assert _upload(client, token, assignment.code, s1.student_no).status_code == 201
+        provider = FakeLLMProvider(responses=[_valid_individual_json()])
+        db = SessionLocal()
+        run_worker_once(db, provider, settings)
+        # AI 评为 B；教师调分为 A（未 stale）
+        ov = models.GradeOverride(target_type="individual",
+                                  target_id=f"{aid}:{s1.id}", final_grade="A",
+                                  comment="", teacher_id=teacher.id, stale=False)
+        db.add(ov)
+        db.commit()
+        db.close()
+        r = client.get(f"/assignments/{aid}/board")
+        assert "最终: A" in r.text
+
+        # override 标记 stale 后应回退显示 AI 的 B
+        db = SessionLocal()
+        ov = db.query(models.GradeOverride).one()
+        ov.stale = True
+        db.commit()
+        db.close()
+        r = client.get(f"/assignments/{aid}/board")
+        assert "最终: B" in r.text
+        assert "最终: A" not in r.text
+        assert "基于旧提交" in r.text
+
 
 class TestProgressAPI:
     def test_progress_requires_teacher(self, client):
