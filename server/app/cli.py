@@ -29,4 +29,5 @@ def main():
         print(f"教师 {args.username} 已创建")
 
 
-main()
+if __name__ == "__main__":
+    main()
