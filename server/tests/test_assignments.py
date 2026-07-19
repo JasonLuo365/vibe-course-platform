@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 from app.utils import utcnow
 from tests.test_courses_roster import _login
@@ -55,3 +55,21 @@ def test_meta_after_deadline(client):
         "deadline": (now - timedelta(days=1)).isoformat(), "max_package_mb": 50}).json()["code"]
     m = client.get(f"/api/assignments/{code}/meta").json()
     assert m["accepts"] is False and "截止" in m["reason"]
+
+
+def test_create_assignment_aware_datetime_converted_to_utc(client):
+    _login(client)
+    cid = _course(client)
+    now = utcnow()
+    tz = timezone(timedelta(hours=8))
+    opens_at = (now + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0).replace(tzinfo=tz)
+    deadline = (now + timedelta(days=7)).replace(hour=8, minute=0, second=0, microsecond=0).replace(tzinfo=tz)
+    r = client.post(f"/courses/{cid}/assignments", json={
+        "title": "TZ", "description": "", "rubric": RUBRIC,
+        "opens_at": opens_at.isoformat(),
+        "deadline": deadline.isoformat(), "max_package_mb": 50})
+    assert r.status_code == 200, r.text
+    code = r.json()["code"]
+    m = client.get(f"/api/assignments/{code}/meta").json()
+    assert m["opens_at"] == opens_at.astimezone(timezone.utc).replace(tzinfo=None).isoformat()
+    assert m["deadline"] == deadline.astimezone(timezone.utc).replace(tzinfo=None).isoformat()

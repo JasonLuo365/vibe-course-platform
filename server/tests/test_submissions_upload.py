@@ -2,11 +2,13 @@ import hashlib
 import io
 import json
 import os
+import tempfile
 import zipfile
 from datetime import timedelta
 
 from app.db import SessionLocal
 from app import models
+from app.errors import ApiError
 from app.utils import utcnow
 from tests.test_courses_roster import _login
 
@@ -25,10 +27,10 @@ def _setup(client, code=None):
     return token, code
 
 
-def _package(code, client_version="0.1.0", fmt="1"):
+def _package(code, client_version="0.1.0", fmt="1", student_no="1"):
     files = {"sessions/a.jsonl": b"hello", "code/main.py": b"print(1)"}
     manifest = {
-        "format_version": fmt, "assignment_code": code, "student_no": "1",
+        "format_version": fmt, "assignment_code": code, "student_no": student_no,
         "client_version": client_version, "submitted_at": "2026-07-19T08:00:00Z",
         "files": [{"path": n, "sha256": hashlib.sha256(b).hexdigest()} for n, b in files.items()],
     }
@@ -113,6 +115,38 @@ def test_upload_deadline_passed(client):
     r = _upload(client, token, code)
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "DEADLINE_PASSED"
+
+
+def test_upload_not_open(client):
+    _login(client)
+    cid = client.post("/courses", json={"name": "C", "term": ""}).json()["id"]
+    body = client.post(f"/courses/{cid}/roster",
+                       json={"csv": "学号,姓名,小组\n1,甲,G\n"}).json()
+    token = body["tokens_csv"].splitlines()[1].split(",")[2]
+    code = client.post(f"/courses/{cid}/assignments", json={
+        "title": "A", "description": "", "rubric": [{"name": "x", "weight": 100, "description": ""}],
+        "opens_at": (utcnow() + timedelta(days=1)).isoformat(),
+        "deadline": (utcnow() + timedelta(days=2)).isoformat(), "max_package_mb": 50}).json()["code"]
+    r = _upload(client, token, code)
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "NOT_OPEN"
+
+
+def test_upload_student_mismatch(client):
+    token, code = _setup(client)
+    r = _upload(client, token, code, student_no="999")
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "STUDENT_MISMATCH"
+
+
+def test_upload_tempfile_failure_guard(client, monkeypatch):
+    token, code = _setup(client)
+    def _boom(*args, **kwargs):
+        raise ApiError(422, "TMP_FAIL", "临时文件创建失败")
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", _boom)
+    r = _upload(client, token, code)
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "TMP_FAIL"
 
 
 def test_upload_package_too_large(client):

@@ -1,6 +1,6 @@
 import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, field_validator
@@ -39,6 +39,12 @@ class AssignmentIn(BaseModel):
         return v
 
 
+def _as_naive_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
 def _new_code(db: Session) -> str:
     while True:
         code = "".join(secrets.choice(_ALPHABET) for _ in range(8))
@@ -55,8 +61,8 @@ def create_assignment(course_id: int, body: AssignmentIn, db: Session = Depends(
         course_id=course_id, code=_new_code(db), title=body.title,
         description=body.description,
         rubric_json=[i.model_dump() for i in body.rubric],
-        opens_at=body.opens_at.replace(tzinfo=None),
-        deadline=body.deadline.replace(tzinfo=None),
+        opens_at=_as_naive_utc(body.opens_at),
+        deadline=_as_naive_utc(body.deadline),
         max_package_mb=body.max_package_mb)
     db.add(a)
     db.commit()

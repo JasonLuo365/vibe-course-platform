@@ -60,18 +60,23 @@ async def submit(
     if m.format_version not in s.supported_manifest_versions:
         raise ApiError(422, "UNSUPPORTED_MANIFEST_VERSION", "manifest 版本不受支持",
                        supported_manifest_versions=s.supported_manifest_versions)
+    if m.student_no != student.student_no:
+        raise ApiError(422, "STUDENT_MISMATCH", "manifest 学号与 token 身份不符")
     a = db.query(models.Assignment).filter_by(code=m.assignment_code).first()
     if not a:
         raise ApiError(404, "NOT_FOUND", "作业码不存在")
     if a.course_id != student.course_id:
         raise ApiError(422, "WRONG_COURSE", "该作业不属于你的课程")
+    if utcnow() < a.opens_at:
+        raise ApiError(422, "NOT_OPEN", "作业未开放")
     if utcnow() > a.deadline:
         raise ApiError(422, "DEADLINE_PASSED", "已过截止时间")
     # 落临时文件（大小受限）
     limit = a.max_package_mb * 1024 * 1024
-    tmp = tempfile.NamedTemporaryFile(delete=False, dir=s.data_dir, suffix=".zip")
+    tmp = None
     size = 0
     try:
+        tmp = tempfile.NamedTemporaryFile(delete=False, dir=s.data_dir, suffix=".zip")
         while chunk := await file.read(1024 * 1024):
             size += len(chunk)
             if size > limit:
@@ -106,16 +111,17 @@ async def submit(
         db.commit()
         return {"submission_id": sub.id, "attempt_no": attempt_no}
     finally:
-        try:
-            if not tmp.closed:
-                tmp.close()
-        except Exception:
-            pass
-        try:
-            if os.path.exists(tmp.name):
-                os.unlink(tmp.name)
-        except OSError:
-            pass
+        if tmp is not None:
+            try:
+                if not tmp.closed:
+                    tmp.close()
+            except Exception:
+                pass
+            try:
+                if os.path.exists(tmp.name):
+                    os.unlink(tmp.name)
+            except OSError:
+                pass
 
 
 @router.get("/api/submissions/status")
@@ -124,6 +130,8 @@ def submission_status(assignment_code: str,
                       db: Session = Depends(get_db)):
     a = db.query(models.Assignment).filter_by(code=assignment_code).first()
     if not a:
+        raise ApiError(404, "NOT_FOUND", "作业码不存在")
+    if a.course_id != student.course_id:
         raise ApiError(404, "NOT_FOUND", "作业码不存在")
     sub = db.query(models.Submission).filter_by(
         assignment_id=a.id, student_id=student.id).first()
