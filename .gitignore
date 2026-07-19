@@ -2,3 +2,10 @@ spikes/**/dist/
 spikes/**/__pycache__/
 spikes/scratch/
 spikes/repo-test/
+server/.venv/
+server/.pytest_tmp/
+server/.pytest_cache/
+**/__pycache__/
+*.pyc
+server/data/
+server/.pytest-temp/
