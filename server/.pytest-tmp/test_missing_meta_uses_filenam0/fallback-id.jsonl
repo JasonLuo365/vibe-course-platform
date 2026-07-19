@@ -1,0 +1,2 @@
+{"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hello"}]}}
+{"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": "hi"}}

@@ -38,6 +38,7 @@ def claim_next_job(db: Session) -> models.EvalJob | None:
     running = (
         db.query(models.EvalJob)
         .filter_by(status="running")
+        .filter(models.EvalJob.attempts < 3)
         .order_by(models.EvalJob.created_at.asc())
         .all()
     )
@@ -82,16 +83,16 @@ def run_worker_once(db: Session, provider, settings: Settings | None = None) -> 
         except Exception as e:
             error = str(e)
             job.last_error = error[:2000]
-            attempt.status = "failed"
-            attempt.error = error[:2000]
-            if submission is not None:
-                submission.status = "failed"
-                submission.error = error[:2000]
-
             if job.attempts >= 3:
                 job.status = "failed"
+                attempt.status = "failed"
+                attempt.error = error[:2000]
+                if submission is not None:
+                    submission.status = "failed"
+                    submission.error = error[:2000]
             else:
-                job.status = "queued"
+                # Remain "running"; claim_next_job will re-claim after backoff.
+                job.status = "running"
             db.commit()
             return 0
 

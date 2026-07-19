@@ -1,3 +1,4 @@
+import logging
 import os
 from glob import glob
 from typing import Any
@@ -11,6 +12,8 @@ from .evaluator import EvalError, code_digest, evaluate_group, evaluate_individu
 from .metrics import compute_metrics
 from .parser import parse_rollout
 from .prompts import PROMPT_VERSION
+
+logger = logging.getLogger(__name__)
 
 def _settings_or_default(settings: Settings | None) -> Settings:
     return settings if settings is not None else get_settings()
@@ -103,7 +106,10 @@ def evaluate_attempt(
         submission.error = None
     db.commit()
 
-    _maybe_evaluate_group(db, attempt, provider, settings=settings)
+    try:
+        _maybe_evaluate_group(db, attempt, provider, settings=settings)
+    except Exception:
+        logger.exception("Group evaluation failed for attempt %s", attempt.id)
     return ev
 
 

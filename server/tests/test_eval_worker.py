@@ -127,7 +127,32 @@ class TestRunWorkerOnce:
         assert db.query(models.GroupEvaluation).count() == 0
         db.close()
 
-    def test_retries_exhausted_marks_failed(self, client, settings, monkeypatch):
+    def test_group_eval_failure_isolated(self, client, settings):
+        tokens, code = _setup_with_students(client, "学号,姓名,小组\n1,甲,G\n2,乙,G\n")
+        assert _upload(client, tokens["1"], code, "1").status_code == 201
+        assert _upload(client, tokens["2"], code, "2").status_code == 201
+
+        # Two individual responses; the third LLM call (group eval) exhausts the queue
+        # and raises, which must not affect the individual eval success or job state.
+        provider = FakeLLMProvider(
+            responses=[_valid_individual_json(), _valid_individual_json()]
+        )
+        db = SessionLocal()
+        processed = run_worker_once(db, provider, settings)
+        assert processed == 1
+        processed = run_worker_once(db, provider, settings)
+        assert processed == 1
+
+        attempts = db.query(models.SubmissionAttempt).order_by(models.SubmissionAttempt.id).all()
+        subs = db.query(models.Submission).order_by(models.Submission.id).all()
+        jobs = db.query(models.EvalJob).order_by(models.EvalJob.id).all()
+        assert all(a.status == "evaluated" for a in attempts)
+        assert all(s.status == "evaluated" for s in subs)
+        assert all(j.status == "done" for j in jobs)
+        assert db.query(models.GroupEvaluation).count() == 0
+        db.close()
+
+    def test_retries_exhausted_marks_failed(self, client, settings):
         tokens, code = _setup_with_students(client, "学号,姓名,小组\n1,甲,G\n")
         r = _upload(client, tokens["1"], code, "1")
         assert r.status_code == 201
@@ -137,13 +162,24 @@ class TestRunWorkerOnce:
 
         provider = FakeLLMProvider(callable=_boom)
         db = SessionLocal()
-        future = utcnow() + timedelta(minutes=10)
-        monkeypatch.setattr("app.eval.worker._now", lambda: future)
 
         for i in range(3):
             processed = run_worker_once(db, provider, settings)
+            assert processed == 0
+
+            job = db.query(models.EvalJob).one()
             if i < 2:
-                assert processed == 0
+                assert job.status == "running"
+                assert job.attempts == i + 1
+                # Immediately after failure the job is NOT reclaimable.
+                assert claim_next_job(db) is None
+                # Backdate updated_at so backoff (attempts * 60s) has elapsed.
+                job.updated_at = utcnow() - timedelta(seconds=job.attempts * 60)
+                db.commit()
+                assert claim_next_job(db) is not None
+            else:
+                assert job.attempts == 3
+                assert job.status == "failed"
 
         att = db.query(models.SubmissionAttempt).one()
         sub = db.query(models.Submission).one()
