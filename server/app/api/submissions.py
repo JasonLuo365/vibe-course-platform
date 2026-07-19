@@ -107,6 +107,10 @@ async def submit(
         sub.current_attempt_id = att.id
         sub.status = "queued"
         att.status = "queued"
+
+        # Mark any existing grade overrides as stale before committing the new attempt.
+        _mark_overrides_stale(db, a.id, student.id, student.group_id)
+
         enqueue_individual(db, a.id, att.id)
         db.commit()
         return {"submission_id": sub.id, "attempt_no": attempt_no}
@@ -122,6 +126,22 @@ async def submit(
                     os.unlink(tmp.name)
             except OSError:
                 pass
+
+
+def _mark_overrides_stale(db: Session, assignment_id: int, student_id: int, group_id: int | None):
+    (
+        db.query(models.GradeOverride)
+        .filter(models.GradeOverride.target_type == "individual")
+        .filter(models.GradeOverride.target_id == f"{assignment_id}:{student_id}")
+        .update({"stale": True}, synchronize_session=False)
+    )
+    if group_id is not None:
+        (
+            db.query(models.GradeOverride)
+            .filter(models.GradeOverride.target_type == "group")
+            .filter(models.GradeOverride.target_id == f"{assignment_id}:{group_id}")
+            .update({"stale": True}, synchronize_session=False)
+        )
 
 
 @router.get("/api/submissions/status")

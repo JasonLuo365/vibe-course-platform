@@ -27,7 +27,12 @@
     <h2>{{ row.group.name if row.group else '未分组' }}</h2>
     <div class="group-members">
       {% for m in row.members %}
+      {% if m.submission %}
+      <a href="/submissions/{{ m.submission.id }}" class="member-cell-link">
       <div class="member-cell status-{{ m.cell_status }}">
+      {% else %}
+      <div class="member-cell status-{{ m.cell_status }}">
+      {% endif %}
         <div class="member-info">
           <span class="student-no">{{ m.student.student_no }}</span>
           <span class="student-name">{{ m.student.name }}</span>
@@ -44,7 +49,12 @@
           <span class="badge failed">失败</span>
           {% endif %}
         </div>
+      {% if m.submission %}
       </div>
+      </a>
+      {% else %}
+      </div>
+      {% endif %}
       {% endfor %}
     </div>
   </div>

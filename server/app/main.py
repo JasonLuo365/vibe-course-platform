@@ -13,6 +13,7 @@ from .config import Settings, get_settings
 from .errors import ApiError, api_error_handler
 from .web import PageAuthRequired
 from .web import pages as web_pages
+from .web import detail as web_detail
 
 
 templates = Jinja2Templates(
@@ -63,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(assignments.router)
     app.include_router(submissions.router)
     app.include_router(web_pages.router)
+    app.include_router(web_detail.router)
 
     @app.get("/health")
     def health():

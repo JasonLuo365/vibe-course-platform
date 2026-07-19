@@ -27,7 +27,7 @@ def _override_for_student(db: Session, assignment_id: int, student_id: int):
 
 
 def _final_grade(override, evaluation):
-    if override is not None and not override.stale:
+    if override is not None:
         return override.final_grade
     if evaluation is not None:
         return evaluation.grade
