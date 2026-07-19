@@ -1,4 +1,0 @@
-{"type": "session_meta", "payload": {"id": "files", "timestamp": "2026-07-19T10:00:00Z"}}
-{"type": "response_item", "payload": {"type": "function_call", "name": "write_file", "arguments": "{\"path\": \"app/models.py\", \"content\": \"\"}"}}
-{"type": "response_item", "payload": {"type": "function_call", "name": "write_file", "arguments": "{\"path\": \"app/main.py\", \"content\": \"\"}"}}
-{"type": "response_item", "payload": {"type": "function_call_output", "output": "wrote app/models.py again"}}
