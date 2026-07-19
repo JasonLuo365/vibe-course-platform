@@ -4,6 +4,7 @@ spikes/scratch/
 spikes/repo-test/
 server/.venv/
 server/.pytest_tmp/
+server/.pytest-tmp/
 server/.pytest_cache/
 **/__pycache__/
 *.pyc
