@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
@@ -382,18 +382,19 @@ def _safe_excel_cell(value: Any) -> str:
 def _style_export_sheet(sheet, assignment: models.Assignment, headers: list[str], widths: list[int]) -> None:
     sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
     title = sheet.cell(1, 1, f"Vibe 作业反馈表 · {assignment.title}")
-    title.font = Font(bold=True, color="FFFFFF", size=14)
-    title.fill = PatternFill("solid", fgColor="2563EB")
+    title.font = Font(bold=True, color="FFFFFF", size=16)
+    title.fill = PatternFill("solid", fgColor="0F172A")
     title.alignment = Alignment(horizontal="left", vertical="center")
     sheet.row_dimensions[1].height = 28
     sheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
     sheet.cell(2, 1, f"作业码：{assignment.code}    截止时间：{assignment.deadline}")
-    sheet.cell(2, 1).font = Font(color="64748B", italic=True)
+    sheet.cell(2, 1).font = Font(color="075985", italic=True, bold=True)
+    sheet.cell(2, 1).fill = PatternFill("solid", fgColor="E0F2FE")
     sheet.row_dimensions[2].height = 22
     for index, header in enumerate(headers, start=1):
         cell = sheet.cell(4, index, header)
         cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="1D4ED8")
+        cell.fill = PatternFill("solid", fgColor="0F766E")
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         sheet.column_dimensions[get_column_letter(index)].width = widths[index - 1]
     sheet.row_dimensions[4].height = 26
@@ -403,12 +404,22 @@ def _style_export_sheet(sheet, assignment: models.Assignment, headers: list[str]
 
 
 def _write_export_row(sheet, row_index: int, values: list[Any]) -> None:
+    border = Border(bottom=Side(style="thin", color="CBD5E1"))
     for column, value in enumerate(values, start=1):
         cell = sheet.cell(row_index, column, _safe_excel_cell(value))
         cell.alignment = Alignment(vertical="top", wrap_text=True)
+        cell.border = border
     if row_index % 2:
         for cell in sheet[row_index]:
             cell.fill = PatternFill("solid", fgColor="F8FAFC")
+
+
+def _dimension_summary(evaluation: models.Evaluation | None) -> str:
+    lines: list[str] = []
+    for dimension in (evaluation.dimension_scores_json if evaluation else []):
+        if isinstance(dimension, dict):
+            lines.append(f"• {dimension.get('name', '未命名维度')}｜{dimension.get('score', '')} 分｜权重 {dimension.get('weight', '')}%\n  {dimension.get('rationale', '')}".rstrip())
+    return "\n\n".join(lines)
 
 
 @router.get("/assignments/{aid}/export.xlsx")
@@ -418,34 +429,17 @@ def export_xlsx(request: Request, aid: int, db: Session = Depends(get_db), t: mo
         raise ApiError(404, "NOT_FOUND", "作业不存在")
     records = _assignment_export_records(db, assignment)
     workbook = Workbook()
-    overview = workbook.active
-    overview.title = "反馈总表"
-    _style_export_sheet(overview, assignment, ["学号", "姓名", "小组", "提交状态", "AI 等级", "最终等级", "教师备注"], [15, 14, 14, 14, 11, 11, 30])
+    feedback = workbook.active
+    feedback.title = "个人反馈"
+    _style_export_sheet(feedback, assignment, ["学号", "姓名", "小组", "提交状态", "AI 等级", "最终等级", "个人评价", "改进建议", "评分维度与说明", "教师备注"], [14, 12, 12, 13, 10, 10, 42, 42, 54, 26])
     for index, record in enumerate(records, start=5):
         submission, evaluation, override = record["submission"], record["evaluation"], record["override"]
-        _write_export_row(overview, index, [record["student"].student_no, record["student"].name, record["group_name"], submission.status if submission else "未提交", evaluation.grade if evaluation else "", _final_grade(override, evaluation) or "", override.comment if override and not override.stale else ""])
-
-    feedback = workbook.create_sheet("个人反馈")
-    _style_export_sheet(feedback, assignment, ["学号", "姓名", "小组", "个人评价", "改进建议"], [15, 14, 14, 52, 52])
-    for index, record in enumerate(records, start=5):
-        evaluation = record["evaluation"]
         improvements = "\n".join(f"• {item}" for item in (evaluation.feedback_json if evaluation else []))
-        _write_export_row(feedback, index, [record["student"].student_no, record["student"].name, record["group_name"], evaluation.rationale if evaluation else "", improvements])
-        feedback.row_dimensions[index].height = 90
-
-    dimensions = workbook.create_sheet("评分维度")
-    _style_export_sheet(dimensions, assignment, ["学号", "姓名", "小组", "评分维度", "得分", "权重", "评分说明"], [15, 14, 14, 20, 10, 10, 60])
-    row = 5
-    for record in records:
-        evaluation = record["evaluation"]
-        for dimension in (evaluation.dimension_scores_json if evaluation else []):
-            if isinstance(dimension, dict):
-                _write_export_row(dimensions, row, [record["student"].student_no, record["student"].name, record["group_name"], dimension.get("name", ""), dimension.get("score", ""), dimension.get("weight", ""), dimension.get("rationale", "")])
-                dimensions.row_dimensions[row].height = 48
-                row += 1
+        _write_export_row(feedback, index, [record["student"].student_no, record["student"].name, record["group_name"], submission.status if submission else "未提交", evaluation.grade if evaluation else "", _final_grade(override, evaluation) or "", evaluation.rationale if evaluation else "", improvements, _dimension_summary(evaluation), override.comment if override and not override.stale else ""])
+        feedback.row_dimensions[index].height = 150
 
     groups = workbook.create_sheet("小组反馈")
-    _style_export_sheet(groups, assignment, ["小组", "最终等级", "小组评价"], [20, 12, 80])
+    _style_export_sheet(groups, assignment, ["小组", "成员", "最终等级", "小组评价"], [20, 36, 12, 82])
     seen: set[str] = set()
     row = 5
     for record in records:
@@ -453,8 +447,9 @@ def export_xlsx(request: Request, aid: int, db: Session = Depends(get_db), t: mo
             continue
         seen.add(record["group_name"])
         group_evaluation = record["group_evaluation"]
-        _write_export_row(groups, row, [record["group_name"], _final_grade(record["group_override"], group_evaluation) or "", group_evaluation.rationale if group_evaluation else ""])
-        groups.row_dimensions[row].height = 72
+        members = "、".join(f"{item['student'].name}（{item['student'].student_no}）" for item in records if item["group_name"] == record["group_name"])
+        _write_export_row(groups, row, [record["group_name"], members, _final_grade(record["group_override"], group_evaluation) or "", group_evaluation.rationale if group_evaluation else ""])
+        groups.row_dimensions[row].height = 96
         row += 1
 
     output = io.BytesIO()

@@ -329,7 +329,8 @@ class TestExportWorkbook:
         assert response.status_code == 200
         assert "spreadsheetml" in response.headers["content-type"]
         workbook = load_workbook(io.BytesIO(response.content))
-        assert workbook.sheetnames == ["反馈总表", "个人反馈", "评分维度", "小组反馈"]
-        assert workbook["反馈总表"]["A1"].value.startswith("Vibe 作业反馈表")
-        assert workbook["反馈总表"].freeze_panes == "A5"
-        assert workbook["个人反馈"]["D5"].alignment.wrap_text is True
+        assert workbook.sheetnames == ["个人反馈", "小组反馈"]
+        assert workbook["个人反馈"]["A1"].value.startswith("Vibe 作业反馈表")
+        assert workbook["个人反馈"].freeze_panes == "A5"
+        assert "需求理解" in workbook["个人反馈"]["I5"].value
+        assert workbook["个人反馈"]["G5"].alignment.wrap_text is True
