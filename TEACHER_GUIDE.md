@@ -100,14 +100,15 @@ sudo docker compose exec -T server vibe-server create-assignment 1 --input assig
   -OutputPath '.\release\bootstrap.ps1'
 ```
 
-若班上有 macOS 学生，再在 macOS 或 Linux 终端中生成对应脚本：
+若班上有 macOS 学生，你仍可在同一台 Windows 电脑的 PowerShell 中生成对应脚本：
 
-```bash
-bash ./ops/render-bootstrap.sh \
-  --marketplace-url 'https://github.com/JasonLuo365/vibe-course-marketplace.git' \
-  --server-url 'https://vibe.planlabopc.com' \
-  --version '0.1.2' \
-  --output './release/bootstrap.sh'
+```powershell
+.\ops\render-bootstrap.ps1 `
+  -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
+  -ServerUrl 'https://vibe.planlabopc.com' `
+  -Version '0.1.2' `
+  -OutputPath '.\release\bootstrap.sh' `
+  -Platform macOS
 ```
 
 全班公开发送：`STUDENT_GUIDE.md`、作业要求和作业代码；向 Windows 学生发 `release/bootstrap.ps1`，向 macOS 学生发 `release/bootstrap.sh`。逐人私发：学号确认信息与对应 `submit_token`。

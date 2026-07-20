@@ -12,11 +12,15 @@ param(
     [string]$Version,
 
     [Parameter(Mandatory = $true)]
-    [string]$OutputPath
+    [string]$OutputPath,
+
+    [ValidateSet('Windows', 'macOS')]
+    [string]$Platform = 'Windows'
 )
 
 $root = Split-Path -Parent $PSScriptRoot
-$templatePath = Join-Path $root 'client\scripts\bootstrap.ps1'
+$templateName = if ($Platform -eq 'Windows') { 'bootstrap.ps1' } else { 'bootstrap.sh' }
+$templatePath = Join-Path $root (Join-Path 'client\scripts' $templateName)
 $template = Get-Content -LiteralPath $templatePath -Raw -Encoding utf8
 
 if ($template -notmatch 'https://TODO/course-marketplace' -or
@@ -25,8 +29,13 @@ if ($template -notmatch 'https://TODO/course-marketplace' -or
 }
 
 $rendered = $template.Replace('https://TODO/course-marketplace', $MarketplaceUrl).
-    Replace('https://TODO/vibe-submit', $ServerUrl).
-    Replace('$VIBE_SUBMIT_VERSION    = "0.1.2"', ('$VIBE_SUBMIT_VERSION    = "' + $Version + '"'))
+    Replace('https://TODO/vibe-submit', $ServerUrl)
+
+if ($Platform -eq 'Windows') {
+    $rendered = $rendered.Replace('$VIBE_SUBMIT_VERSION    = "0.1.2"', ('$VIBE_SUBMIT_VERSION    = "' + $Version + '"'))
+} else {
+    $rendered = $rendered.Replace('VIBE_SUBMIT_VERSION="0.1.2"', ('VIBE_SUBMIT_VERSION="' + $Version + '"'))
+}
 
 $outDir = Split-Path -Parent $OutputPath
 if ($outDir) {
@@ -37,4 +46,4 @@ if ($outDir) {
     $rendered,
     [System.Text.UTF8Encoding]::new($false)
 )
-Write-Host "Generated student bootstrap script: $OutputPath"
+Write-Host "Generated $Platform student bootstrap script: $OutputPath"
