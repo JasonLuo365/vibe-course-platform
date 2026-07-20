@@ -6,6 +6,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
 from .. import models
@@ -341,6 +344,125 @@ def _safe_csv_cell(value: Any) -> str:
     return "'" + text if text.startswith(("=", "+", "-", "@")) else text
 
 
+def _assignment_export_records(db: Session, assignment: models.Assignment) -> list[dict[str, Any]]:
+    """Structured records used by the formatted workbook."""
+    records: list[dict[str, Any]] = []
+    groups = db.query(models.Group).filter_by(course_id=assignment.course_id).order_by(models.Group.name).all()
+    specs: list[tuple[models.Group | None, list[models.Student]]] = []
+    for group in groups:
+        students = db.query(models.Student).filter_by(group_id=group.id, course_id=assignment.course_id).order_by(models.Student.student_no).all()
+        if students:
+            specs.append((group, students))
+    ungrouped = db.query(models.Student).filter_by(course_id=assignment.course_id, group_id=None).order_by(models.Student.student_no).all()
+    if ungrouped:
+        specs.append((None, ungrouped))
+    for group, students in specs:
+        group_evaluation = None
+        group_override = None
+        if group:
+            group_evaluation = db.query(models.GroupEvaluation).filter_by(assignment_id=assignment.id, group_id=group.id).order_by(models.GroupEvaluation.created_at.desc()).first()
+            group_override = _group_override(db, assignment.id, group.id)
+        for student in students:
+            submission = db.query(models.Submission).filter_by(assignment_id=assignment.id, student_id=student.id).first()
+            attempt = db.get(models.SubmissionAttempt, submission.current_attempt_id) if submission and submission.current_attempt_id else None
+            evaluation = _latest_evaluation(db, attempt)
+            records.append({
+                "student": student, "group_name": group.name if group else "未分组",
+                "submission": submission, "evaluation": evaluation,
+                "override": _override_for_student(db, assignment.id, student.id),
+                "group_evaluation": group_evaluation, "group_override": group_override,
+            })
+    return records
+
+
+def _safe_excel_cell(value: Any) -> str:
+    return _safe_csv_cell(value)
+
+
+def _style_export_sheet(sheet, assignment: models.Assignment, headers: list[str], widths: list[int]) -> None:
+    sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    title = sheet.cell(1, 1, f"Vibe 作业反馈表 · {assignment.title}")
+    title.font = Font(bold=True, color="FFFFFF", size=14)
+    title.fill = PatternFill("solid", fgColor="2563EB")
+    title.alignment = Alignment(horizontal="left", vertical="center")
+    sheet.row_dimensions[1].height = 28
+    sheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
+    sheet.cell(2, 1, f"作业码：{assignment.code}    截止时间：{assignment.deadline}")
+    sheet.cell(2, 1).font = Font(color="64748B", italic=True)
+    sheet.row_dimensions[2].height = 22
+    for index, header in enumerate(headers, start=1):
+        cell = sheet.cell(4, index, header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="1D4ED8")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        sheet.column_dimensions[get_column_letter(index)].width = widths[index - 1]
+    sheet.row_dimensions[4].height = 26
+    sheet.freeze_panes = "A5"
+    sheet.auto_filter.ref = f"A4:{get_column_letter(len(headers))}4"
+    sheet.sheet_view.showGridLines = False
+
+
+def _write_export_row(sheet, row_index: int, values: list[Any]) -> None:
+    for column, value in enumerate(values, start=1):
+        cell = sheet.cell(row_index, column, _safe_excel_cell(value))
+        cell.alignment = Alignment(vertical="top", wrap_text=True)
+    if row_index % 2:
+        for cell in sheet[row_index]:
+            cell.fill = PatternFill("solid", fgColor="F8FAFC")
+
+
+@router.get("/assignments/{aid}/export.xlsx")
+def export_xlsx(request: Request, aid: int, db: Session = Depends(get_db), t: models.Teacher = Depends(get_teacher_page)):
+    assignment = db.get(models.Assignment, aid)
+    if assignment is None:
+        raise ApiError(404, "NOT_FOUND", "作业不存在")
+    records = _assignment_export_records(db, assignment)
+    workbook = Workbook()
+    overview = workbook.active
+    overview.title = "反馈总表"
+    _style_export_sheet(overview, assignment, ["学号", "姓名", "小组", "提交状态", "AI 等级", "最终等级", "教师备注"], [15, 14, 14, 14, 11, 11, 30])
+    for index, record in enumerate(records, start=5):
+        submission, evaluation, override = record["submission"], record["evaluation"], record["override"]
+        _write_export_row(overview, index, [record["student"].student_no, record["student"].name, record["group_name"], submission.status if submission else "未提交", evaluation.grade if evaluation else "", _final_grade(override, evaluation) or "", override.comment if override and not override.stale else ""])
+
+    feedback = workbook.create_sheet("个人反馈")
+    _style_export_sheet(feedback, assignment, ["学号", "姓名", "小组", "个人评价", "改进建议"], [15, 14, 14, 52, 52])
+    for index, record in enumerate(records, start=5):
+        evaluation = record["evaluation"]
+        improvements = "\n".join(f"• {item}" for item in (evaluation.feedback_json if evaluation else []))
+        _write_export_row(feedback, index, [record["student"].student_no, record["student"].name, record["group_name"], evaluation.rationale if evaluation else "", improvements])
+        feedback.row_dimensions[index].height = 90
+
+    dimensions = workbook.create_sheet("评分维度")
+    _style_export_sheet(dimensions, assignment, ["学号", "姓名", "小组", "评分维度", "得分", "权重", "评分说明"], [15, 14, 14, 20, 10, 10, 60])
+    row = 5
+    for record in records:
+        evaluation = record["evaluation"]
+        for dimension in (evaluation.dimension_scores_json if evaluation else []):
+            if isinstance(dimension, dict):
+                _write_export_row(dimensions, row, [record["student"].student_no, record["student"].name, record["group_name"], dimension.get("name", ""), dimension.get("score", ""), dimension.get("weight", ""), dimension.get("rationale", "")])
+                dimensions.row_dimensions[row].height = 48
+                row += 1
+
+    groups = workbook.create_sheet("小组反馈")
+    _style_export_sheet(groups, assignment, ["小组", "最终等级", "小组评价"], [20, 12, 80])
+    seen: set[str] = set()
+    row = 5
+    for record in records:
+        if record["group_name"] in seen:
+            continue
+        seen.add(record["group_name"])
+        group_evaluation = record["group_evaluation"]
+        _write_export_row(groups, row, [record["group_name"], _final_grade(record["group_override"], group_evaluation) or "", group_evaluation.rationale if group_evaluation else ""])
+        groups.row_dimensions[row].height = 72
+        row += 1
+
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="vibe-feedback.xlsx"'})
+
+
 @router.get("/assignments/{aid}/export.csv")
 def export_csv(
     request: Request,
@@ -403,4 +525,3 @@ def export_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="export.csv"'},
     )
-

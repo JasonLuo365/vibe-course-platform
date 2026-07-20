@@ -25,11 +25,19 @@
         <td>{{ a.title }}</td>
         <td><code>{{ a.code }}</code></td>
         <td>{{ a.deadline }}</td>
-        <td class="actions">
-          <a class="text-link" href="/assignments/{{ a.id }}/board">总览与评审</a>
-          <a class="text-link" href="/assignments/{{ a.id }}/present">作品展示</a>
-          <a class="text-link" href="/assignments/{{ a.id }}/review-present">评价展示</a>
-          <a class="text-link" href="/assignments/{{ a.id }}/export.csv">导出反馈表</a>
+        <td>
+          <div class="dashboard-actions">
+            <a class="button button-small" href="/assignments/{{ a.id }}/board">进入总览</a>
+            <details class="action-menu">
+              <summary>更多操作 <span>⌄</span></summary>
+              <div class="action-menu-popover">
+                <a href="/assignments/{{ a.id }}/present">课堂作品展示</a>
+                <a href="/assignments/{{ a.id }}/review-present">评价展示</a>
+                <a href="/assignments/{{ a.id }}/export.xlsx">导出反馈表（Excel）</a>
+                <a href="/assignments/{{ a.id }}/export.csv">下载 CSV（兼容）</a>
+              </div>
+            </details>
+          </div>
         </td>
       </tr>
       {% else %}
@@ -42,4 +50,3 @@
 <p class="empty">暂无课程。请先创建课程、导入花名册并创建作业。</p>
 {% endfor %}
 {% endblock %}
-

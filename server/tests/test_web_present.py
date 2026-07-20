@@ -7,6 +7,8 @@ import re
 import zipfile
 from datetime import timedelta
 
+from openpyxl import load_workbook
+
 from app import models
 from app.db import SessionLocal
 from app.eval.worker import run_worker_once
@@ -306,3 +308,28 @@ class TestExportCsv:
         assert dims["迭代能力"] == 80
         assert evaluated_row[9] == ""
 
+
+class TestExportWorkbook:
+    def test_export_xlsx_is_a_formatted_workbook(self, client, settings):
+        _setup_course_and_assignment(client)
+        db = SessionLocal()
+        assignment = db.query(models.Assignment).one()
+        student = db.query(models.Student).order_by(models.Student.student_no).first()
+        from app.security import hash_token, new_submit_token
+        token = new_submit_token()
+        student.submit_token_hash = hash_token(token)
+        db.commit()
+        db.close()
+        assert _upload(client, token, assignment.code, student.student_no).status_code == 201
+        db = SessionLocal()
+        run_worker_once(db, FakeLLMProvider(responses=[_valid_individual_json()]), settings)
+        db.close()
+
+        response = client.get(f"/assignments/{assignment.id}/export.xlsx")
+        assert response.status_code == 200
+        assert "spreadsheetml" in response.headers["content-type"]
+        workbook = load_workbook(io.BytesIO(response.content))
+        assert workbook.sheetnames == ["反馈总表", "个人反馈", "评分维度", "小组反馈"]
+        assert workbook["反馈总表"]["A1"].value.startswith("Vibe 作业反馈表")
+        assert workbook["反馈总表"].freeze_panes == "A5"
+        assert workbook["个人反馈"]["D5"].alignment.wrap_text is True
