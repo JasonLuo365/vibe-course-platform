@@ -107,6 +107,8 @@ class Evaluation(Base):
     model: Mapped[str] = mapped_column(default="")
     prompt_version: Mapped[str] = mapped_column(default="")
     created_at: Mapped[object] = mapped_column(DateTime, default=utcnow)
+    published_at: Mapped[object | None] = mapped_column(DateTime, nullable=True)
+    published_by_teacher_id: Mapped[int | None] = mapped_column(ForeignKey("teachers.id"), nullable=True)
 
 
 class GroupEvaluation(Base):
@@ -121,6 +123,8 @@ class GroupEvaluation(Base):
     contribution_json: Mapped[dict] = mapped_column(JSON)
     evidence_json: Mapped[list] = mapped_column(JSON)
     created_at: Mapped[object] = mapped_column(DateTime, default=utcnow)
+    published_at: Mapped[object | None] = mapped_column(DateTime, nullable=True)
+    published_by_teacher_id: Mapped[int | None] = mapped_column(ForeignKey("teachers.id"), nullable=True)
 
 
 class GradeOverride(Base):

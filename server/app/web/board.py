@@ -53,6 +53,11 @@ def board_data(db: Session, assignment: models.Assignment) -> dict:
     grouped_students = set()
     group_rows = []
     for group in groups:
+        group_evaluation = (db.query(models.GroupEvaluation).filter_by(assignment_id=assignment.id, group_id=group.id)
+                            .order_by(models.GroupEvaluation.generation.desc(), models.GroupEvaluation.created_at.desc()).first())
+        group_override = (db.query(models.GradeOverride)
+                          .filter_by(target_type="group", target_id=f"{assignment.id}:{group.id}")
+                          .order_by(models.GradeOverride.updated_at.desc()).first())
         members = []
         students = (
             db.query(models.Student)
@@ -84,7 +89,8 @@ def board_data(db: Session, assignment: models.Assignment) -> dict:
                     "stale": bool(override is not None and override.stale),
                 }
             )
-        group_rows.append({"group": group, "members": members})
+        group_rows.append({"group": group, "members": members, "group_evaluation": group_evaluation,
+                           "group_final_grade": _final_grade(group_override, group_evaluation)})
 
     # Ungrouped students.
     ungrouped = (
@@ -118,7 +124,7 @@ def board_data(db: Session, assignment: models.Assignment) -> dict:
                     "stale": bool(override is not None and override.stale),
                 }
             )
-        group_rows.append({"group": None, "members": members})
+        group_rows.append({"group": None, "members": members, "group_evaluation": None, "group_final_grade": None})
 
     progress = _progress(db, assignment.id)
     return {"assignment": assignment, "groups": group_rows, "progress": progress}

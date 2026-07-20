@@ -15,6 +15,7 @@ from ..deps import get_teacher
 from ..errors import ApiError
 from ..eval.metrics import compute_metrics
 from ..eval.parser import parse_rollout
+from ..utils import utcnow
 from .pages import get_teacher_page
 
 router = APIRouter()
@@ -347,6 +348,39 @@ def evaluation_override(
     db.commit()
 
     return RedirectResponse(url=f"/submissions/{submission.id}", status_code=302)
+
+
+@router.post("/evaluations/{eid}/publish")
+def publish_evaluation(eid: int, db: Session = Depends(get_db), t: models.Teacher = Depends(get_teacher_page)):
+    evaluation = db.get(models.Evaluation, eid)
+    if evaluation is None:
+        raise ApiError(404, "NOT_FOUND", "评估不存在")
+    attempt = db.get(models.SubmissionAttempt, evaluation.attempt_id)
+    submission = db.get(models.Submission, attempt.submission_id) if attempt else None
+    if attempt is None or submission is None:
+        raise ApiError(404, "NOT_FOUND", "提交不存在")
+    if submission.current_attempt_id != attempt.id:
+        raise ApiError(409, "STALE_EVALUATION", "不能发布已被新提交替代的旧评估")
+    evaluation.published_at = utcnow()
+    evaluation.published_by_teacher_id = t.id
+    db.commit()
+    return RedirectResponse(url=f"/submissions/{submission.id}", status_code=302)
+
+
+@router.post("/group-evaluations/{gid}/publish")
+def publish_group_evaluation(gid: int, db: Session = Depends(get_db), t: models.Teacher = Depends(get_teacher_page)):
+    evaluation = db.get(models.GroupEvaluation, gid)
+    if evaluation is None:
+        raise ApiError(404, "NOT_FOUND", "小组评估不存在")
+    latest = (db.query(models.GroupEvaluation)
+              .filter_by(assignment_id=evaluation.assignment_id, group_id=evaluation.group_id)
+              .order_by(models.GroupEvaluation.generation.desc(), models.GroupEvaluation.created_at.desc()).first())
+    if latest is None or latest.id != evaluation.id:
+        raise ApiError(409, "STALE_EVALUATION", "不能发布已被新版小组评估替代的旧结果")
+    evaluation.published_at = utcnow()
+    evaluation.published_by_teacher_id = t.id
+    db.commit()
+    return RedirectResponse(url=f"/assignments/{evaluation.assignment_id}/board", status_code=302)
 
 
 @router.post("/group-evaluations/{gid}/override")

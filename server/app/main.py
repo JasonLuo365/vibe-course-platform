@@ -9,7 +9,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.templating import Jinja2Templates
 
-from .api import assignments, auth, courses, submissions
+from .api import assignments, auth, courses, reports, submissions
 from .config import Settings, get_settings
 from .errors import ApiError, api_error_handler
 from .web import PageAuthRequired
@@ -86,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(courses.router)
     app.include_router(assignments.router)
     app.include_router(submissions.router)
+    app.include_router(reports.router)
     app.include_router(web_pages.router)
     app.include_router(web_detail.router)
     app.include_router(web_present.router)
