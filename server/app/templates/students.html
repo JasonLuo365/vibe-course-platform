@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}学生管理{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">课程管理</p><h1>学生管理</h1><p class="page-summary">查看花名册、小组与提交状态。重置令牌后，旧令牌会立即失效。</p></div></div>
+<section class="card"><table class="assign-table"><thead><tr><th>课程</th><th>学号</th><th>姓名</th><th>小组</th><th>提交状态</th><th>令牌</th></tr></thead><tbody>
+{% for row in rows %}<tr><td>{{ row.course.name if row.course else '-' }}</td><td>{{ row.student.student_no }}</td><td>{{ row.student.name }}</td><td>{{ row.group }}</td><td>{{ row.statuses|join(', ') if row.statuses else '未提交' }}</td><td><button class="text-button reset-token" type="button" data-student-id="{{ row.student.id }}" data-student-name="{{ row.student.name }}">重置</button></td></tr>
+{% else %}<tr><td colspan="6" class="empty">尚未导入学生名单。</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}
+{% block scripts %}<script>
+document.querySelectorAll('.reset-token').forEach((button) => { button.addEventListener('click', async () => {
+  const name = button.dataset.studentName;
+  if (!confirm(`确定重置 ${name} 的提交令牌吗？旧令牌将立即失效。`)) return;
+  button.disabled = true;
+  try { const response = await fetch(`/students/${button.dataset.studentId}/reset-token`, {method: 'POST'}); const data = await response.json(); if (!response.ok) throw new Error(data.detail?.message || '重置失败'); alert(`请仅通过私密渠道发送给 ${name}。新提交令牌：\n\n${data.token}\n\n关闭后无法再次查看此令牌。`); }
+  catch (error) { alert(error.message || '重置失败'); } finally { button.disabled = false; }
+}); });
+</script>{% endblock %}

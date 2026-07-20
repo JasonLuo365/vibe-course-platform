@@ -92,3 +92,62 @@ def progress_api(
         raise ApiError(404, "NOT_FOUND", "作业不存在")
     return progress_for_assignment(db, aid)
 
+
+@router.get("/students", response_class=HTMLResponse)
+def students_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    t: models.Teacher = Depends(get_teacher_page),
+):
+    """Show the roster, group membership and latest submission state."""
+    from ..main import templates
+
+    courses = db.query(models.Course).order_by(models.Course.id).all()
+    course_by_id = {course.id: course for course in courses}
+    groups = {group.id: group.name for group in db.query(models.Group).all()}
+    students = (
+        db.query(models.Student)
+        .order_by(models.Student.course_id, models.Student.student_no)
+        .all()
+    )
+    statuses: dict[int, list[str]] = {}
+    for submission in db.query(models.Submission).all():
+        statuses.setdefault(submission.student_id, []).append(submission.status)
+    rows = [
+        {
+            "student": student,
+            "course": course_by_id.get(student.course_id),
+            "group": groups.get(student.group_id, "未分组"),
+            "statuses": statuses.get(student.id, []),
+        }
+        for student in students
+    ]
+    return templates.TemplateResponse(request, "students.html", {"teacher": t, "rows": rows})
+
+
+@router.get("/analytics", response_class=HTMLResponse)
+def analytics_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    t: models.Teacher = Depends(get_teacher_page),
+):
+    """Provide a small course-level summary for teachers."""
+    from ..main import templates
+
+    status_counts: dict[str, int] = {}
+    grade_counts: dict[str, int] = {}
+    submissions = db.query(models.Submission).all()
+    for submission in submissions:
+        status_counts[submission.status] = status_counts.get(submission.status, 0) + 1
+    for evaluation in db.query(models.Evaluation).all():
+        grade_counts[evaluation.grade] = grade_counts.get(evaluation.grade, 0) + 1
+    return templates.TemplateResponse(
+        request,
+        "analytics.html",
+        {
+            "teacher": t,
+            "submissions": len(submissions),
+            "status_counts": status_counts,
+            "grade_counts": grade_counts,
+        },
+    )

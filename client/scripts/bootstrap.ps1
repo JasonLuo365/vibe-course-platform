@@ -2,7 +2,7 @@
 # The course maintainer replaces the placeholders before distributing this file.
 $COURSE_MARKETPLACE_URL = "https://TODO/course-marketplace.git"
 $COURSE_SERVER_URL      = "https://TODO/vibe-submit"
-$VIBE_SUBMIT_VERSION    = "0.1.0"
+$VIBE_SUBMIT_VERSION    = "0.1.2"
 $COURSE_CLIENT_SOURCE   = "git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v$VIBE_SUBMIT_VERSION#subdirectory=packages/vibe-submit"
 
 # Ensure uv is available so we can run the client through its reviewed GitHub tag.
@@ -22,4 +22,3 @@ uvx --from $COURSE_CLIENT_SOURCE vibe-submit bootstrap `
     --marketplace-url $COURSE_MARKETPLACE_URL `
     --server $COURSE_SERVER_URL `
     @args
-

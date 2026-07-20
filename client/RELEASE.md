@@ -4,7 +4,7 @@ The official client is distributed from the immutable GitHub tag rather than
 PyPI:
 
 ```powershell
-uvx --from "git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.0#subdirectory=packages/vibe-submit" vibe-submit --help
+uvx --from "git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.2#subdirectory=packages/vibe-submit" vibe-submit --help
 ```
 
 Before each classroom release:
@@ -16,10 +16,9 @@ Before each classroom release:
 ```powershell
 .\ops\render-bootstrap.ps1 `
   -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
-  -ServerUrl 'https://vibe.example.com' `
-  -Version '0.1.0' `
+  -ServerUrl 'https://vibe.planlabopc.com' `
+  -Version '0.1.2' `
   -OutputPath '.\release\bootstrap.ps1'
 ```
 
 Do not put student tokens in the generated script. Send each token privately.
-

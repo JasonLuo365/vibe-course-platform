@@ -57,17 +57,36 @@ def _safe_extract_root(settings: Settings) -> pathlib.Path:
     return pathlib.Path(os.path.abspath(os.path.join(settings.data_dir, "extracted")))
 
 
+def _is_displayable_prompt(text: str) -> bool:
+    """Hide injected/system-like, garbled, and content-free prompt records."""
+    cleaned = " ".join(text.split())
+    if len(cleaned) < 2 or len(cleaned) > 6000:
+        return False
+    lowered = cleaned.lower()
+    if any(marker in lowered for marker in (
+        "<recommended_plugins>", "<permissions instructions>",
+        "<environment_context>", "<developer",
+    )):
+        return False
+    replacement_ratio = cleaned.count("\ufffd") / max(len(cleaned), 1)
+    control_ratio = sum(ord(char) < 32 and char not in "\n\t" for char in cleaned) / max(len(cleaned), 1)
+    return replacement_ratio < 0.03 and control_ratio < 0.03
+
+
 def _teacher_conversations(timelines):
-    """Expose only student prompts and the final assistant response following each prompt."""
+    """Group safe prompt/final-answer pairs by source session."""
     conversations = []
     for timeline in timelines:
+        session = {"session_id": timeline.session_id, "prompt_pairs": []}
         current = None
         for turn in timeline.turns:
             if turn.kind == "user":
                 if current is not None:
-                    conversations.append(current)
+                    session["prompt_pairs"].append(current)
+                if not _is_displayable_prompt(turn.text):
+                    current = None
+                    continue
                 current = {
-                    "session_id": timeline.session_id,
                     "prompt": turn.text,
                     "prompt_ts": turn.ts,
                     "answer": None,
@@ -77,7 +96,9 @@ def _teacher_conversations(timelines):
                 current["answer"] = turn.text
                 current["answer_ts"] = turn.ts
         if current is not None:
-            conversations.append(current)
+            session["prompt_pairs"].append(current)
+        if session["prompt_pairs"]:
+            conversations.append(session)
     return conversations
 
 
@@ -365,4 +386,3 @@ def group_evaluation_override(
     db.commit()
 
     return RedirectResponse(url=f"/assignments/{geval.assignment_id}/board", status_code=302)
-

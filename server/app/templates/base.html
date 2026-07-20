@@ -13,8 +13,8 @@
       <a class="sidebar-brand" href="/"><span class="brand-mark">V</span><span>Vibe<small>课堂作业平台</small></span></a>
       <nav class="side-nav" aria-label="教师端导航">
         <a class="{% if request.url.path == '/' %}active{% endif %}" href="/"><span>▦</span>课程看板</a>
-        <span class="side-nav-disabled"><span>♙</span>学生管理<small>即将推出</small></span>
-        <span class="side-nav-disabled"><span>◔</span>数据分析<small>即将推出</small></span>
+        <a class="{% if request.url.path == '/students' %}active{% endif %}" href="/students"><span>♙</span>学生管理</a>
+        <a class="{% if request.url.path == '/analytics' %}active{% endif %}" href="/analytics"><span>◔</span>数据分析</a>
       </nav>
       <div class="sidebar-footer"><span class="teacher-avatar">{{ (teacher.display_name or teacher.username)[0] }}</span><span>{{ teacher.display_name or teacher.username }}<small>教师</small></span></div>
     </aside>
@@ -31,4 +31,3 @@
   {% block scripts %}{% endblock %}
 </body>
 </html>
-

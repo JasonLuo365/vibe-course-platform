@@ -36,11 +36,14 @@
 <section class="tab-panel" id="timeline">
   <div class="metrics-strip"><span>会话 {{ metrics.sessions }}</span><span>总轮数 {{ metrics.turns }}</span><span>学生提示 {{ metrics.user_turns }}</span><span>时长 {{ metrics.duration_min }} 分钟</span><span>纠错 {{ metrics.error_fix_cycles }}</span><span>文件 {{ metrics.files_touched }}</span></div>
   <div class="conversation-list">
-    {% for item in conversations %}
+    {% for session in conversations %}
+    <section class="session-group"><div class="session-heading">会话 {{ loop.index }} <code>{{ session.session_id }}</code><span>{{ session.prompt_pairs|length }} 条有效提示词</span></div>
+    {% for item in session.prompt_pairs %}
     <details class="conversation-card">
       <summary><span class="conversation-index">{{ loop.index }}</span><span class="conversation-prompt"><b>提示词</b>{{ item.prompt|truncate(110, true, '…') }}</span><span class="conversation-time">{{ item.prompt_ts or '' }}</span><span class="chevron">⌄</span></summary>
       <div class="conversation-answer"><div class="answer-label">Codex 最终回答</div>{% if item.answer %}<pre>{{ item.answer }}</pre>{% else %}<p>该提示词后没有可展示的最终回答。</p>{% endif %}</div>
     </details>
+    {% endfor %}</section>
     {% else %}<div class="card empty-state">未找到可展示的学生提示词。</div>{% endfor %}
   </div>
 </section>
@@ -70,4 +73,3 @@ document.querySelectorAll('.tab-button').forEach(function (button) { button.addE
 activateTab(window.location.hash.slice(1), false);
 </script>
 {% endblock %}
-

@@ -122,15 +122,25 @@ class TestDetailPage:
             ],
         )
 
-        assert _teacher_conversations([timeline]) == [
-            {
-                "session_id": "s1",
+        assert _teacher_conversations([timeline]) == [{
+            "session_id": "s1",
+            "prompt_pairs": [{
                 "prompt": "Build a page",
                 "prompt_ts": "2026-07-20T10:00:00Z",
                 "answer": "The final answer",
                 "answer_ts": "2026-07-20T10:01:00Z",
-            }
-        ]
+            }],
+        }]
+
+    def test_teacher_conversations_filter_system_and_garbled_prompts(self):
+        timeline = RolloutTimeline(session_id="s1", path="x", turns=[
+            Turn("user", "<recommended_plugins> internal", None),
+            Turn("user", "\ufffd\ufffd\ufffd", None),
+            Turn("user", "实现一个页面", None),
+            Turn("assistant", "完成了", None),
+        ])
+        result = _teacher_conversations([timeline])
+        assert result[0]["prompt_pairs"][0]["prompt"] == "实现一个页面"
 
     def test_detail_redirects_when_unauthenticated(self, client):
         r = client.get("/submissions/1", follow_redirects=False)
@@ -342,4 +352,3 @@ class TestSubmissionMedia:
         image = client.get(f"/media/extracted/{attempt.id}/screenshots/sc.png")
         assert image.status_code == 200
         assert image.headers["x-content-type-options"] == "nosniff"
-
