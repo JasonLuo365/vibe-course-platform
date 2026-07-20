@@ -96,7 +96,7 @@ sudo docker compose exec -T server vibe-server create-assignment 1 --input assig
 .\ops\render-bootstrap.ps1 `
   -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
   -ServerUrl 'https://vibe.planlabopc.com' `
-  -Version '0.1.2' `
+  -Version '0.1.4' `
   -OutputPath '.\release\bootstrap.ps1'
 ```
 
@@ -106,7 +106,7 @@ sudo docker compose exec -T server vibe-server create-assignment 1 --input assig
 .\ops\render-bootstrap.ps1 `
   -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
   -ServerUrl 'https://vibe.planlabopc.com' `
-  -Version '0.1.2' `
+  -Version '0.1.4' `
   -OutputPath '.\release\bootstrap.sh' `
   -Platform macOS
 ```
@@ -122,9 +122,18 @@ sudo docker compose exec -T server vibe-server create-assignment 1 --input assig
 - **小组报告**：在作业总览的对应小组点击“发布小组报告”。个人报告与小组报告独立发布；小组报告不会泄露其他成员的个人反馈。
 - **反馈 Excel**：含“个人反馈”和“小组反馈”两页，便于阅卷、归档和后续导入成绩系统。
 
+### 评估报告发布流程
+
+1. 等待状态显示为“已评”，进入学生的作业详情检查 AI 原评、维度与反馈；需要时先保存教师调分和备注。
+2. 确认个人结果后，点击 **发布给学生**。该学生才能在 Codex 主动查询自己的个人报告。
+3. 确认团队结果后，在作业总览相应小组点击 **发布小组报告**。这只向该小组当前成员开放团队共同结论，不会发布成员个人评价。
+4. 个人发布与小组发布互不影响；学生没有教师账户，也不会收到服务器主动发送的聊天消息。学生主动说“查看我的评估反馈”时，插件才读取已发布数据。
+
+若学生重交，系统会切换到新的提交版本；旧提交对应的发布结果不会替代新版本报告。请重新审核并发布新评估。
+
 ## 六、开课前与异常处理
 
-1. 先用一个测试学生完成“安装 → 预览 → 上传 → 评估 → 教师查看 → Excel 导出”全链路。
+1. 先用一个测试学生完成“安装/升级到 v0.1.4 → 预览 → 上传 → 评估 → 教师发布个人和小组报告 → 学生在新 Codex 窗口查询 → Excel 导出”全链路。
 2. 开课前访问 `https://vibe.planlabopc.com/health`，应返回 `status: ok` 且 `worker_enabled: true`。
 3. 每次更新前先备份：`cd ~/vibe-course-platform && chmod +x ops/backup.sh && ./ops/backup.sh`。
 4. 若 API Key、教师密码或令牌泄露：立即在对应服务更换密钥/密码，并重置受影响学生令牌。
