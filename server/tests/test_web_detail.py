@@ -142,6 +142,16 @@ class TestDetailPage:
         result = _teacher_conversations([timeline])
         assert result[0]["prompt_pairs"][0]["prompt"] == "实现一个页面"
 
+    def test_teacher_conversations_filter_codex_approval_context(self):
+        timeline = RolloutTimeline(session_id="s1", path="x", turns=[
+            Turn("user", "The following is the Codex agent history whose request action you are assessing.", None),
+            Turn("assistant", '{"risk_level":"high","outcome":"allow"}', None),
+            Turn("user", "实现一个可拖拽的课程卡片", None),
+            Turn("assistant", "已完成课程卡片。", None),
+        ])
+        result = _teacher_conversations([timeline])
+        assert result[0]["prompt_pairs"][0]["prompt"] == "实现一个可拖拽的课程卡片"
+
     def test_detail_redirects_when_unauthenticated(self, client):
         r = client.get("/submissions/1", follow_redirects=False)
         assert r.status_code == 302

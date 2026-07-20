@@ -66,6 +66,9 @@ def _is_displayable_prompt(text: str) -> bool:
     if any(marker in lowered for marker in (
         "<recommended_plugins>", "<permissions instructions>",
         "<environment_context>", "<developer",
+        "the following is the codex agent history whose request action you are assessing",
+        "the following is the codex agent history added since your last approval assessment",
+        "continue the same review based on the latest transcript",
     )):
         return False
     replacement_ratio = cleaned.count("\ufffd") / max(len(cleaned), 1)
