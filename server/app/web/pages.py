@@ -105,6 +105,10 @@ def students_page(
     courses = db.query(models.Course).order_by(models.Course.id).all()
     course_by_id = {course.id: course for course in courses}
     groups = {group.id: group.name for group in db.query(models.Group).all()}
+    groups_by_course: dict[int, list[models.Group]] = {}
+    for group in db.query(models.Group).order_by(models.Group.course_id, models.Group.name).all():
+        groups_by_course.setdefault(group.course_id, []).append(group)
+    enrollments = {item.course_id: item for item in db.query(models.CourseEnrollment).all()}
     students = (
         db.query(models.Student)
         .order_by(models.Student.course_id, models.Student.student_no)
@@ -118,11 +122,15 @@ def students_page(
             "student": student,
             "course": course_by_id.get(student.course_id),
             "group": groups.get(student.group_id, "未分组"),
+            "group_id": student.group_id,
             "statuses": statuses.get(student.id, []),
         }
         for student in students
     ]
-    return templates.TemplateResponse(request, "students.html", {"teacher": t, "rows": rows})
+    return templates.TemplateResponse(request, "students.html", {
+        "teacher": t, "rows": rows, "courses": courses,
+        "groups_by_course": groups_by_course, "enrollments": enrollments,
+    })
 
 
 @router.get("/analytics", response_class=HTMLResponse)

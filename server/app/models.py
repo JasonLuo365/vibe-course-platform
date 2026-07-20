@@ -20,11 +20,29 @@ class Course(Base):
     term: Mapped[str] = mapped_column(default="")
 
 
+class CourseEnrollment(Base):
+    """Self-registration and fixed-group policy, kept separate for SQLite compatibility."""
+
+    __tablename__ = "course_enrollments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), unique=True)
+    code_hash: Mapped[str] = mapped_column(unique=True)
+    groups_locked: Mapped[bool] = mapped_column(default=False)
+    max_group_size: Mapped[int] = mapped_column(default=6)
+
+
 class Group(Base):
     __tablename__ = "groups"
     id: Mapped[int] = mapped_column(primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"))
     name: Mapped[str]
+
+
+class GroupJoinCode(Base):
+    __tablename__ = "group_join_codes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    group_id: Mapped[int] = mapped_column(ForeignKey("groups.id"), unique=True)
+    code_hash: Mapped[str] = mapped_column(unique=True)
 
 
 class Student(Base):
