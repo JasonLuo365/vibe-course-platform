@@ -26,7 +26,7 @@ if ($template -notmatch 'https://TODO/course-marketplace' -or
 
 $rendered = $template.Replace('https://TODO/course-marketplace', $MarketplaceUrl).
     Replace('https://TODO/vibe-submit', $ServerUrl).
-    Replace('"0.1.0"', ('"' + $Version + '"'))
+    Replace('$VIBE_SUBMIT_VERSION    = "0.1.2"', ('$VIBE_SUBMIT_VERSION    = "' + $Version + '"'))
 
 $outDir = Split-Path -Parent $OutputPath
 if ($outDir) {
@@ -38,4 +38,3 @@ if ($outDir) {
     [System.Text.UTF8Encoding]::new($false)
 )
 Write-Host "Generated student bootstrap script: $OutputPath"
-

@@ -1,12 +1,12 @@
 # Vibe Coding 作业提交：学生安装与使用指南
 
-适用环境：Windows 10/11、PowerShell、Codex。请将此文件保存在作业项目中；需要协助时可把它拖入 Codex 对话，并说“请严格按这份 Vibe 作业指南协助我预览和提交，不要索取或展示我的令牌”。
+适用环境：Windows 10/11（PowerShell）或 macOS（终端），以及 Codex。请将此文件保存在作业项目中；需要协助时可把它拖入 Codex 对话，并说“请严格按这份 Vibe 作业指南协助我预览和提交，不要索取或展示我的令牌”。
 
 ## 你会收到什么
 
 教师会发送四项信息：
 
-1. `bootstrap.ps1` 安装脚本（全班相同）；
+1. Windows 使用 `bootstrap.ps1`，macOS 使用 `bootstrap.sh`（均为全班相同的安装脚本）；
 2. 作业代码，例如 `AB12CD34`；
 3. 你的学号；
 4. 你的个人 `submit_token`，形如 `vs_...`（仅私发给你）。
@@ -14,6 +14,8 @@
 `submit_token` 相当于提交密码：不能发给同学、不能粘贴到 Codex 对话、不能提交到 Git，也不要放进截图。忘记或泄露后只能请教师重置。
 
 ## 第一次安装
+
+### Windows 10/11
 
 1. 把教师提供的 `bootstrap.ps1` 保存到下载文件夹。
 2. 打开 **Windows PowerShell**，不要在 CMD 中执行。进入脚本目录：
@@ -26,7 +28,23 @@
 
 3. 首次运行会安装 `uv`、登记 Vibe Submit Marketplace，并依次询问：学号、个人 `submit_token`、服务器地址。逐项填写教师发来的信息；服务器地址通常是 `https://vibe.planlabopc.com`。
 4. 看到 `Server reachable` 与 `doctor: checks passed` 即完成。若 PowerShell 提示找不到 `uv`/`uvx`，关闭该窗口后重新开一个 PowerShell 再运行脚本。
-5. 完全退出并重新启动 Codex。插件菜单中应能看到 Vibe 作业提交。
+
+### macOS
+
+1. 把教师提供的 `bootstrap.sh` 保存到下载文件夹。请只运行由任课教师直接发放的脚本。
+2. 打开 **终端**（Terminal），进入下载文件夹并运行：
+
+   ```bash
+   cd ~/Downloads
+   bash ./bootstrap.sh
+   ```
+
+3. 首次运行会在你的用户目录安装 `uv`，不需要输入管理员密码；之后会登记 Vibe Submit Marketplace，并询问学号、个人 `submit_token` 与服务器地址。逐项填写教师私发的信息。
+4. 看到 `Server reachable` 与 `doctor: checks passed` 即完成。若提示找不到 `uv`/`uvx`，关闭终端后重新打开，再运行一次 `bash ./bootstrap.sh`。
+
+### 完成安装
+
+完全退出并重新启动 Codex。插件菜单中应能看到 Vibe 作业提交。
 
 > 不要把安装命令开头的 `-ExecutionPolicy` 单独粘贴到 PowerShell；那是 `powershell` 命令的参数，会导致“无法识别”错误。
 
@@ -72,6 +90,7 @@ vibe-submit doctor
 | 现象 | 处理方式 |
 | --- | --- |
 | 只有“预览成功”的摘要 | 继续让 Codex“查看预览内容”。预览 ID 约一小时有效，过期后重新预览。 |
+| macOS 显示“permission denied”或无法运行 | 使用 `bash ./bootstrap.sh`，不要双击脚本；确认脚本来自教师后再运行。 |
 | 没有找到 Codex 会话 | 确认是在作业项目内使用 Codex，且会话发生在作业开放时间后；提交时 `--project` 指向根目录。 |
 | 域名解析到 `198.18.x.x`、证书错误 | 关闭 VPN 的 TUN/Fake-IP 模式或换正常网络，再运行 `vibe-submit doctor`。 |
 | 文件过大 | 单个文件上限 10 MB；删除依赖目录、构建产物与大文件后重新预览。 |
