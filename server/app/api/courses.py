@@ -174,6 +174,7 @@ def reset_token(student_id: int, db: Session = Depends(get_db),
         raise ApiError(404, "NOT_FOUND", "学生不存在")
     token = new_submit_token()
     s.submit_token_hash = hash_token(token)
+    s.web_session_version += 1
     db.commit()
     return {"student_id": student_id, "token": token}
 

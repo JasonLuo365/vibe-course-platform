@@ -11,7 +11,7 @@ from ..eval.prompts import PROMPT_PROFILE_LABELS
 from ..errors import ApiError
 from . import PageAuthRequired
 from .board import board_data, progress_for_assignment
-from ..services.student_portal import dashboard_data
+from ..services.student_portal import dashboard_data, submission_feedback_data
 
 router = APIRouter()
 
@@ -80,6 +80,26 @@ def student_dashboard(
     return templates.TemplateResponse(
         request,
         "student_dashboard.html",
+        {**data, "student": student},
+    )
+
+
+@router.get("/student/submissions/{sid}", response_class=HTMLResponse)
+def student_submission_feedback(
+    request: Request,
+    sid: int,
+    db: Session = Depends(get_db),
+    student: models.Student = Depends(get_student_page),
+):
+    from ..main import templates
+
+    submission = db.get(models.Submission, sid)
+    if submission is None or submission.student_id != student.id:
+        raise ApiError(404, "NOT_FOUND", "提交不存在")
+    data = submission_feedback_data(db, student, submission)
+    return templates.TemplateResponse(
+        request,
+        "student_feedback.html",
         {**data, "student": student},
     )
 
