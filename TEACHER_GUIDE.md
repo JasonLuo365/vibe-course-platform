@@ -41,32 +41,11 @@ sudo docker compose exec server vibe-server --help
 sudo docker compose exec server vibe-server create-assignment --help
 ```
 
-作业必须设置开放时间、截止时间、评分量规和包大小上限。使用“学生自助登记”时，把作业代码、学生安装脚本和**课程邀请码**发送给学生即可；只有使用 CSV 导入时，才需要逐一私密发送令牌。
+作业必须设置开放时间、截止时间、评分量规和包大小上限。使用“学生自助登记”时，在课程群发布学生指南链接、作业代码和**课程邀请码**即可；只有使用 CSV 导入时，才需要逐一私密发送令牌。
 
-## 二、生成并发放学生安装脚本
+## 二、统一发布安装说明
 
-在教师自己的 Windows 项目目录中执行：
-
-```powershell
-.\ops\render-bootstrap.ps1 `
-  -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
-  -ServerUrl 'https://vibe.planlabopc.com' `
-  -Version '0.1.3' `
-  -OutputPath '.\release\bootstrap.ps1'
-```
-
-若班上有 macOS 学生，你仍可在同一台 Windows 电脑的 PowerShell 中生成对应脚本：
-
-```powershell
-.\ops\render-bootstrap.ps1 `
-  -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
-  -ServerUrl 'https://vibe.planlabopc.com' `
-  -Version '0.1.3' `
-  -OutputPath '.\release\bootstrap.sh' `
-  -Platform macOS
-```
-
-把 `release/bootstrap.ps1`（Windows）或 `release/bootstrap.sh`（macOS）、`STUDENT_GUIDE.md` 和课程邀请码发给对应学生。脚本不应包含任何学生令牌。
+学生不需要下载教师生成的 `bootstrap.ps1` 或 `bootstrap.sh`。将 `STUDENT_GUIDE.md` 的链接或全文、课程邀请码和作业代码发布到课程群/课程平台即可。指南内的 Windows/macOS 命令从固定的 `v0.1.5` Marketplace 标签安装客户端、登记 Marketplace 并完成学生自助注册。
 
 ## 三、评估报告：审核、发布与通知
 

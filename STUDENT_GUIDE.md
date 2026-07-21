@@ -1,8 +1,7 @@
 # Vibe Coding 作业提交：学生使用指南
 
-本指南适用于 Windows（PowerShell）或 macOS（终端）+ Codex。教师会发送给你：
+本指南适用于 Windows（PowerShell）或 macOS（终端）+ Codex。教师只需在课程群或课程平台发布：
 
-- 课程安装脚本：Windows 为 `bootstrap.ps1`，macOS 为 `bootstrap.sh`；
 - 作业代码；
 - 课程邀请码。
 
@@ -10,33 +9,41 @@
 
 ## 第一次安装：Windows 10/11
 
-1. 保存老师发来的 `bootstrap.ps1`，例如保存到“下载”文件夹。
-2. 打开 **Windows PowerShell**，进入脚本所在文件夹：
+打开 **Windows PowerShell**，直接复制并运行以下命令：
 
-   ```powershell
-   cd "$env:USERPROFILE\Downloads"
-   Set-ExecutionPolicy -Scope Process Bypass
-   .\bootstrap.ps1
-   ```
+```powershell
+if (-not (Get-Command uvx -ErrorAction SilentlyContinue)) {
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+}
+$source = "git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.5#subdirectory=packages/vibe-submit"
+uvx --from $source vibe-submit bootstrap `
+  --marketplace-url "https://github.com/JasonLuo365/vibe-course-marketplace.git" `
+  --marketplace-name "vibe-course" `
+  --server "https://vibe.planlabopc.com"
+```
 
-3. 第一次执行时会自动安装 `uv`（Python 工具）、安装 Vibe Submit 插件并要求输入：服务器地址、课程邀请码、你的学号和姓名。按教师提供的信息填写。
-4. 看到 `doctor` 中的 `Server reachable` 后安装完成。若安装后 Codex 未出现插件，请完全退出并重新打开 Codex。
+按提示输入课程邀请码、学号和姓名；服务器地址已固定，无需修改。看到 `doctor` 中的 `Server reachable` 后，在终端运行 `codex plugin add vibe-submit@vibe-course` 安装插件，然后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。
 
 > 如果 PowerShell 显示“无法识别 uv/uvx”，关闭当前 PowerShell，再新建一个 PowerShell 窗口重试。
 
 ## 第一次安装：macOS
 
-1. 保存老师发来的 `bootstrap.sh` 到“下载”文件夹。只运行教师直接发放的脚本。
-2. 打开 **终端**（Terminal），执行：
+打开 **终端**（Terminal），直接复制并运行以下命令：
 
-   ```bash
-   cd ~/Downloads
-   bash ./bootstrap.sh
-   ```
+```bash
+if ! command -v uvx >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+source="git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.5#subdirectory=packages/vibe-submit"
+uvx --from "$source" vibe-submit bootstrap \
+  --marketplace-url "https://github.com/JasonLuo365/vibe-course-marketplace.git" \
+  --marketplace-name "vibe-course" \
+  --server "https://vibe.planlabopc.com"
+```
 
-3. 脚本会在你的用户目录安装 `uv`，不需要管理员密码；之后按提示输入服务器地址、课程邀请码、学号和姓名。
-4. 看到 `doctor` 中的 `Server reachable` 后安装完成。若终端提示找不到 `uv`/`uvx`，关闭终端后重新打开，再运行一次 `bash ./bootstrap.sh`。
-5. 完全退出并重新打开 Codex。
+按提示输入课程邀请码、学号和姓名；服务器地址已固定，无需修改。看到 `doctor` 中的 `Server reachable` 后，在终端运行 `codex plugin add vibe-submit@vibe-course` 安装插件，然后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。若终端提示找不到 `uv`/`uvx`，关闭终端后重新打开，再运行一次上述完整命令。
 
 ## 首次组队
 
@@ -117,7 +124,7 @@ vibe-submit doctor
 
 **忘记令牌或令牌泄露？** 不要借用同学令牌。联系教师在“学生管理”中重置，教师会私密发送新的令牌；旧令牌会立刻失效。
 
-**macOS 显示“permission denied”或无法运行？** 在终端使用 `bash ./bootstrap.sh`，不要双击脚本；确认脚本来自教师后再运行。
+**macOS 提示找不到 `uvx`？** 关闭终端后重新打开，再运行一次上述完整命令。
 
 ## 隐私与提交范围
 
