@@ -32,15 +32,6 @@ https://vibe.planlabopc.com/health
 
 保存后系统自动生成作业代码。复制“作业代码”给学生；学生提交时必须使用它。
 
-如果需要先导入花名册、再创建作业，可在服务器执行：
-
-```bash
-cd ~/vibe-course-platform
-sudo docker compose exec server vibe-server create-course "课程名称" --term "2026 秋季"
-```
-
-命令会输出课程 ID，后续 CSV 导入需要该 ID。
-
 ## 二、名单、邀请码和分组
 
 ### 推荐方式：学生自助登记
@@ -53,26 +44,6 @@ sudo docker compose exec server vibe-server create-course "课程名称" --term 
 4. 学生首次安装时输入邀请码、学号、姓名、密码和确认密码，系统会自动创建名单记录。
 
 邀请码重置后，旧邀请码失效；只把最新的邀请码发给本课程学生。
-
-### CSV 导入方式
-
-CSV 必须保存为 **UTF-8**（建议“CSV UTF-8”），第一行固定如下：
-
-```csv
-学号,姓名,小组
-20260001,张三,第1组
-20260002,李四,第1组
-20260003,王五,
-```
-
-在服务器执行：
-
-```bash
-cd ~/vibe-course-platform
-sudo docker compose exec -T server vibe-server import-roster 1 < roster.csv
-```
-
-将 `1` 替换为课程 ID。导入学生首次安装时，学号和姓名必须与 CSV 一致，并自行设置密码；不会生成或分发 `submit_token`。
 
 ### 固定分组
 
@@ -113,17 +84,11 @@ sudo docker compose exec -T server vibe-server import-roster 1 < roster.csv
 1. 在学生作业详情的“评估”页签点击“发布给学生”，发布该学生的个人报告。
 2. 在作业总览的每个小组卡片中点击“发布小组报告”，发布该组的共同报告。
 
-发布后，学生才能在插件、终端 `vibe-submit report` 或学生网页登录中查看结果。发布前的 AI 草稿分数不会显示给学生。若学生重新提交，旧评估可能被标记为基于旧提交；请先检查最新提交再发布。
+发布后，学生才能在学生网页登录中查看结果。发布前的 AI 草稿分数不会显示给学生。若学生重新提交，旧评估可能被标记为基于旧提交；请先检查最新提交再发布。
 
-发布完成后，在课程群或 LMS 通知学生“反馈已发布”，并提醒其在 Codex 中说“查看我的评估反馈”。
+发布完成后，在课程群或 LMS 通知学生“反馈已发布”，并附上学生登录页：<https://vibe.planlabopc.com/login>。
 
-## 六、学生网页登录与密码问题
-
-学生可在平台登录页选择“学生登录”，使用学号和个人密码查看自己的提交与已发布反馈。忘记密码时，学生可点击“忘记密码？”并凭学号设置新密码；教师端不再提供 `submit_token` 重置功能。
-
-由于当前重置流程只要求学号，请不要在公共场所展示完整学号名单；如发现异常重置或账号争议，应记录情况并要求学生重新设置密码。
-
-## 七、数据分析与课堂检查
+## 六、数据分析与课堂检查
 
 “数据分析”提供课程范围内的提交状态与 AI 等级分布，适合检查是否有学生未提交、队列积压或大量失败。它是教学汇总，不应作为唯一评分依据。
 
@@ -134,29 +99,7 @@ sudo docker compose exec -T server vibe-server import-roster 1 < roster.csv
 3. 检查 `/health` 的 `status` 与 `worker_enabled`。
 4. 提交一份测试作业，验证“评估 → 教师调分 → 发布 → 学生查看反馈”全链路。
 
-## 八、平台更新、备份与恢复
-
-每次更新前先在 VPS 备份：
-
-```bash
-cd ~/vibe-course-platform
-chmod +x ops/backup.sh
-./ops/backup.sh
-```
-
-然后更新并重建服务：
-
-```bash
-cd ~/vibe-course-platform
-GIT_SSH_COMMAND='ssh -i ~/.ssh/vibe_course_platform -o IdentitiesOnly=yes' git pull --ff-only
-sudo docker compose up -d --build
-sudo docker compose ps
-curl -fsS https://vibe.planlabopc.com/health
-```
-
-确认容器为 `healthy` 且健康检查正常后，再通知师生使用新版本。备份位于 `~/vibe-course-platform/backups/`；请复制一份到受保护的位置。
-
-## 九、隐私与教学责任
+## 七、隐私与教学责任
 
 - 不要将学生密码、邀请码、API Key、完整反馈或名单上传到公开仓库、聊天记录或截图。
 - AI 结果是辅助信息；最终评分、成绩复核和隐私告知仍由课程负责人负责。
