@@ -36,6 +36,7 @@ class Student(Base):
     student_no: Mapped[str]
     name: Mapped[str]
     submit_token_hash: Mapped[str] = mapped_column(unique=True)
+    web_session_version: Mapped[int] = mapped_column(default=1, server_default="1", nullable=False)
 
 
 class Assignment(Base):
