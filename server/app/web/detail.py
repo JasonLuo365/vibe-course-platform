@@ -1,6 +1,11 @@
 import html
+import io
+import mimetypes
 import os
 import pathlib
+import re
+import xml.etree.ElementTree as ET
+import zipfile
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -21,6 +26,26 @@ from .pages import get_teacher_page
 router = APIRouter()
 _SAFE_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 _TEXT_REPORT_SUFFIXES = {".md", ".txt", ".rst", ".csv", ".json", ".html", ".htm"}
+_OFFICE_REPORT_SUFFIXES = {".docx", ".odt", ".pptx", ".xlsx"}
+_LEGACY_OFFICE_SUFFIXES = {".doc", ".ppt", ".xls"}
+_EMBEDDED_REPORT_SUFFIXES = {".pdf"}
+_REPORT_DOWNLOAD_SUFFIXES = (
+    _TEXT_REPORT_SUFFIXES
+    | _OFFICE_REPORT_SUFFIXES
+    | _LEGACY_OFFICE_SUFFIXES
+    | _EMBEDDED_REPORT_SUFFIXES
+    | _SAFE_IMAGE_SUFFIXES
+)
+_REPORT_MIME_TYPES = {
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".odt": "application/vnd.oasis.opendocument.text",
+    ".ppt": "application/vnd.ms-powerpoint",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".xls": "application/vnd.ms-excel",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 
 
 def _extract_dir_for_attempt(attempt: models.SubmissionAttempt, settings: Settings) -> str:
@@ -120,6 +145,72 @@ def _code_tree(code_files: list[str]) -> dict:
     return root
 
 
+def _xml_text(raw: bytes, members: list[str]) -> str:
+    """Extract readable text from XML-based office files without external tools."""
+    parts: list[str] = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            for name in members:
+                if name not in archive.namelist():
+                    continue
+                root = ET.fromstring(archive.read(name))
+                lines: list[str] = []
+                for node in root.iter():
+                    tag = node.tag.rsplit("}", 1)[-1]
+                    if tag == "t" and node.text:
+                        lines.append(node.text)
+                    elif tag in {"tab", "tabStop"}:
+                        lines.append("\t")
+                    elif tag in {"br", "cr", "p"}:
+                        lines.append("\n")
+                text = "".join(lines)
+                if text.strip():
+                    parts.append(text)
+    except (ET.ParseError, OSError, ValueError, zipfile.BadZipFile):
+        return ""
+    return "\n\n".join(parts)
+
+
+def _office_report_text(raw: bytes, suffix: str) -> str:
+    if suffix == ".docx":
+        return _xml_text(raw, ["word/document.xml"])
+    if suffix == ".odt":
+        return _xml_text(raw, ["content.xml"])
+    if suffix == ".pptx":
+        try:
+            with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                slides = sorted(name for name in archive.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", name))
+        except (OSError, ValueError, zipfile.BadZipFile):
+            return ""
+        return _xml_text(raw, slides)
+    if suffix == ".xlsx":
+        try:
+            with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                members = ["xl/sharedStrings.xml"] + sorted(
+                    name for name in archive.namelist() if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", name)
+                )
+        except (OSError, ValueError, zipfile.BadZipFile):
+            return ""
+        return _xml_text(raw, members)
+    return ""
+
+
+def _legacy_office_text(raw: bytes) -> str:
+    """Best-effort text extraction for legacy binary Office files (.doc/.xls/.ppt)."""
+    unicode_chunks = re.findall(rb"(?:[\x20-\x7e\x80-\xff]\x00){4,}", raw)
+    ansi_chunks = re.findall(rb"[\x20-\x7e]{8,}", raw)
+    chunks = [chunk.decode("utf-16-le", errors="ignore") for chunk in unicode_chunks]
+    decoded = raw.decode("utf-16-le", errors="ignore")
+    chunks.extend(re.findall(r"[^\x00-\x1f]{4,}", decoded))
+    chunks.extend(chunk.decode("gb18030", errors="ignore") for chunk in ansi_chunks)
+    cleaned = []
+    for chunk in chunks:
+        text = " ".join(chunk.split())
+        if text and text not in cleaned:
+            cleaned.append(text)
+    return "\n".join(cleaned)
+
+
 def _read_submission_file(extract_dir: str, section: str, path: str) -> dict:
     section_root = pathlib.Path(os.path.realpath(os.path.join(extract_dir, section)))
     requested = pathlib.Path(os.path.realpath(os.path.join(section_root, path)))
@@ -134,12 +225,26 @@ def _read_submission_file(extract_dir: str, section: str, path: str) -> dict:
     except OSError:
         raise ApiError(404, "NOT_FOUND", "file not found")
     max_bytes = 100 * 1024
+    suffix = requested.suffix.lower()
+    content = raw[:max_bytes].decode("utf-8", errors="replace")
+    preview_kind = "text" if suffix in _TEXT_REPORT_SUFFIXES or section == "code" else "download"
+    if section == "report" and suffix in _OFFICE_REPORT_SUFFIXES:
+        content = _office_report_text(raw, suffix)
+        preview_kind = "office-text" if content.strip() else "download"
+    elif section == "report" and suffix in _LEGACY_OFFICE_SUFFIXES:
+        content = _legacy_office_text(raw)
+        preview_kind = "legacy-office-text" if content.strip() else "download"
+    elif section == "report" and suffix in _EMBEDDED_REPORT_SUFFIXES:
+        preview_kind = "pdf"
+    elif section == "report" and suffix in _SAFE_IMAGE_SUFFIXES:
+        preview_kind = "image"
     return {
         "path": path,
-        "content": raw[:max_bytes].decode("utf-8", errors="replace"),
+        "content": content[:max_bytes],
         "truncated": len(raw) > max_bytes,
         "total_bytes": len(raw),
-        "previewable": section == "code" or requested.suffix.lower() in _TEXT_REPORT_SUFFIXES,
+        "previewable": preview_kind != "download",
+        "preview_kind": preview_kind,
     }
 
 
@@ -171,6 +276,35 @@ def media_extracted(
     return FileResponse(
         str(requested),
         headers={"X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.get("/media/reports/{attempt_id}/{path:path}")
+def report_media(
+    attempt_id: int,
+    path: str,
+    request: Request,
+    t: models.Teacher = Depends(get_teacher),
+):
+    """Serve report originals for browser preview or download, without exposing code files."""
+    settings = request.app.state.settings
+    report_root = pathlib.Path(os.path.realpath(os.path.join(settings.data_dir, "extracted", str(attempt_id), "report")))
+    requested = pathlib.Path(os.path.realpath(os.path.join(report_root, path)))
+    try:
+        requested.relative_to(report_root)
+    except ValueError:
+        raise ApiError(404, "NOT_FOUND", "file not found")
+    if not requested.exists() or not requested.is_file() or requested.suffix.lower() not in _REPORT_DOWNLOAD_SUFFIXES:
+        raise ApiError(404, "NOT_FOUND", "file not found")
+    suffix = requested.suffix.lower()
+    media_type = _REPORT_MIME_TYPES.get(suffix) or mimetypes.guess_type(str(requested))[0] or "application/octet-stream"
+    return FileResponse(
+        str(requested),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{quote(requested.name)}",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
@@ -263,6 +397,7 @@ def submission_detail(
             "selected_report": selected_report,
             "screenshots": screenshots,
             "media_prefix": f"/media/extracted/{attempt.id}" if attempt else "",
+            "report_media_prefix": f"/media/reports/{attempt.id}" if attempt else "",
         },
     )
 

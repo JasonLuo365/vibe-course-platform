@@ -58,11 +58,12 @@
 <section class="tab-panel" id="report">
   <div class="code-workspace">
     <aside class="code-explorer"><div class="explorer-title">最终报告 <span>{{ report_files|length }}</span></div><div class="tree-root">{% for path in report_files %}<a class="tree-file {% if selected_report and path == selected_report.path %}selected{% endif %}" href="/submissions/{{ submission.id }}?report={{ path|urlencode }}#report"><span>⌑</span>{{ path }}</a>{% else %}<p class="empty-state">学生未提交 report 文件夹。</p>{% endfor %}</div></aside>
-    <article class="code-preview">{% if selected_report %}<div class="code-preview-header"><span>{{ selected_report.path }}</span><span>{{ selected_report.total_bytes }} bytes</span></div>{% if selected_report.previewable %}{% if selected_report.truncated %}<p class="truncation-note">文件过大，仅显示前 100KB。</p>{% endif %}<pre><code>{{ selected_report.content }}</code></pre>{% else %}<div class="empty-state report-file-note">该报告文件已随作业提交。请使用 Markdown、TXT、CSV 或 HTML 以便在此页面预览。</div>{% endif %}{% else %}<div class="empty-state">没有可展示的最终报告。</div>{% endif %}</article>
+    <article class="code-preview report-preview">{% if selected_report %}<div class="code-preview-header"><span>{{ selected_report.path }}</span><span>{{ selected_report.total_bytes }} bytes</span></div><div class="report-preview-actions"><a class="report-open-link" href="{{ report_media_prefix }}/{{ selected_report.path|urlencode }}" target="_blank" rel="noopener">打开原文件</a><a class="report-open-link" href="{{ report_media_prefix }}/{{ selected_report.path|urlencode }}" download>下载</a></div>{% if selected_report.preview_kind == 'pdf' %}<iframe class="document-frame" src="{{ report_media_prefix }}/{{ selected_report.path|urlencode }}#view=FitH" title="{{ selected_report.path }} PDF 预览"></iframe>{% elif selected_report.preview_kind == 'image' %}<a class="report-image-link" href="{{ report_media_prefix }}/{{ selected_report.path|urlencode }}" target="_blank" rel="noopener"><img src="{{ report_media_prefix }}/{{ selected_report.path|urlencode }}" alt="{{ selected_report.path }}"></a>{% elif selected_report.previewable %}{% if selected_report.preview_kind == 'office-text' %}<p class="document-preview-note">已提取 Office 文档中的文字内容；完整排版、图片和批注请点击“打开原文件”。</p>{% elif selected_report.preview_kind == 'legacy-office-text' %}<p class="document-preview-note">这是从旧版 Office 文件提取的可读文字；为获得完整排版，请点击“打开原文件”。</p>{% endif %}{% if selected_report.truncated %}<p class="truncation-note">文件过大，仅显示前 100KB。</p>{% endif %}<pre><code>{{ selected_report.content }}</code></pre>{% else %}<div class="empty-state report-file-note">此格式无法由浏览器直接渲染。可使用上方“打开原文件”或“下载”在本机查看。</div>{% endif %}{% else %}<div class="empty-state">没有可展示的最终报告。</div>{% endif %}</article>
   </div>
 </section>
 
-<section class="tab-panel" id="screenshots"><div class="screenshots">{% for img in screenshots %}<figure><img src="{{ media_prefix }}/{{ img }}" alt="{{ img }}"><figcaption>{{ img }}</figcaption></figure>{% else %}<div class="empty-state">没有提交截图。</div>{% endfor %}</div></section>
+<section class="tab-panel" id="screenshots"><div class="screenshots">{% for img in screenshots %}<figure><button class="screenshot-trigger" type="button" data-image-src="{{ media_prefix }}/{{ img }}" data-image-name="{{ img }}" aria-label="放大查看 {{ img }}"><img src="{{ media_prefix }}/{{ img }}" alt="{{ img }}"></button><figcaption>{{ img }}</figcaption></figure>{% else %}<div class="empty-state">没有提交截图。</div>{% endfor %}</div></section>
+<div class="image-modal" id="screenshot-modal" hidden role="dialog" aria-modal="true" aria-labelledby="screenshot-modal-title"><button class="image-modal-backdrop" type="button" data-close-image-modal aria-label="关闭预览"></button><div class="image-modal-content"><div class="image-modal-header"><span id="screenshot-modal-title"></span><button class="image-modal-close" type="button" data-close-image-modal aria-label="关闭预览">×</button></div><img id="screenshot-modal-image" src="" alt=""></div></div>
 <a href="/assignments/{{ assignment.id }}/board" class="back-link">← 返回作业总览</a>
 {% endblock %}
 
@@ -78,5 +79,18 @@ function activateTab(tab, updateAddress) {
 }
 document.querySelectorAll('.tab-button').forEach(function (button) { button.addEventListener('click', function () { activateTab(button.dataset.tab, true); }); });
 activateTab(window.location.hash.slice(1), false);
+var screenshotModal = document.getElementById('screenshot-modal');
+var screenshotImage = document.getElementById('screenshot-modal-image');
+var screenshotTitle = document.getElementById('screenshot-modal-title');
+document.querySelectorAll('.screenshot-trigger').forEach(function (button) {
+  button.addEventListener('click', function () {
+    screenshotImage.src = button.dataset.imageSrc;
+    screenshotImage.alt = button.dataset.imageName;
+    screenshotTitle.textContent = button.dataset.imageName;
+    screenshotModal.hidden = false;
+  });
+});
+document.querySelectorAll('[data-close-image-modal]').forEach(function (button) { button.addEventListener('click', function () { screenshotModal.hidden = true; screenshotImage.src = ''; }); });
+document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && !screenshotModal.hidden) { screenshotModal.hidden = true; screenshotImage.src = ''; } });
 </script>
 {% endblock %}

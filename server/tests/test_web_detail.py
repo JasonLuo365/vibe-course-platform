@@ -9,7 +9,7 @@ from app import models
 from app.db import SessionLocal
 from app.eval.worker import run_worker_once
 from app.eval.parser import RolloutTimeline, Turn
-from app.web.detail import _teacher_conversations
+from app.web.detail import _read_report_file, _teacher_conversations
 from app.utils import utcnow
 from tests.test_auth import _mk_teacher
 from tests.test_eval_pipeline import FakeLLMProvider, _valid_individual_json
@@ -94,6 +94,18 @@ def _package(code, student_no, session_text="Implement a todo list"):
         for n, b in files.items():
             z.writestr(n, b)
     return manifest, buf.getvalue()
+
+
+def _docx_bytes(text: str) -> bytes:
+    document = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        f'<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>'
+    ).encode()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr("word/document.xml", document)
+    return buf.getvalue()
 
 
 def _upload(client, token, code, student_no, force=None, session_text="Implement a todo list"):
@@ -355,6 +367,32 @@ class TestCodeViewer:
 
         r = client.get(f"/submissions/{sid}/code?path=../main.py")
         assert r.status_code == 404
+
+
+class TestReportPreviews:
+    def test_docx_and_legacy_doc_expose_readable_text(self, tmp_path):
+        report_dir = tmp_path / "report"
+        report_dir.mkdir()
+        (report_dir / "final.docx").write_bytes(_docx_bytes("项目总结：完成登录功能"))
+        (report_dir / "legacy.doc").write_bytes("旧版报告内容".encode("utf-16-le"))
+
+        docx = _read_report_file(str(tmp_path), "final.docx")
+        legacy = _read_report_file(str(tmp_path), "legacy.doc")
+
+        assert docx["preview_kind"] == "office-text"
+        assert "项目总结" in docx["content"]
+        assert legacy["preview_kind"] == "legacy-office-text"
+        assert "旧版报告内容" in legacy["content"]
+
+    def test_pdf_is_marked_for_embedded_browser_preview(self, tmp_path):
+        report_dir = tmp_path / "report"
+        report_dir.mkdir()
+        (report_dir / "final.pdf").write_bytes(b"%PDF-1.4\n")
+
+        report = _read_report_file(str(tmp_path), "final.pdf")
+
+        assert report["preview_kind"] == "pdf"
+        assert report["previewable"] is True
 
 
 class TestSubmissionMedia:
