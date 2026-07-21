@@ -72,10 +72,11 @@ def test_student_logout_clears_student_session(client):
         json={'student_no': '20260001', 'submit_token': 'vs-student-token'},
     )
 
-    response = client.post('/student/logout')
+    response = client.post('/student/logout', follow_redirects=False)
 
-    assert response.status_code == 200
-    assert response.json() == {'ok': True}
+    assert response.status_code == 303
+    assert response.headers['location'] == '/login'
+    assert client.get('/student', follow_redirects=False).headers['location'].startswith('/login')
 
 
 def test_existing_sqlite_database_gets_student_session_version_once(tmp_path, monkeypatch):

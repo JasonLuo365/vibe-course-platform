@@ -19,14 +19,14 @@
       <div class="sidebar-footer"><span class="teacher-avatar">{{ (teacher.display_name or teacher.username)[0] }}</span><span>{{ teacher.display_name or teacher.username }}<small>教师</small></span></div>
     </aside>
     <div class="app-main">
-      <header class="topbar"><div class="topbar-context">教师工作台</div><div class="topbar-actions"><span class="notification">♧</span><span>{{ teacher.display_name or teacher.username }}</span></div></header>
+      <header class="topbar"><div class="topbar-context">教师工作台</div><div class="topbar-actions"><span class="notification">♧</span><span>{{ teacher.display_name or teacher.username }}</span><form method="post" action="/logout"><button type="submit" class="text-button">退出登录</button></form></div></header>
       {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
       <main class="container">
   {% elif student %}
   <div class="student-shell">
     <header class="student-topbar">
       <a class="student-brand" href="/student"><span class="brand-mark">V</span><span>Vibe<small>学生作业中心</small></span></a>
-      <div class="student-account"><span>{{ student.name }} · {{ student.student_no }}</span><form method="post" action="/student/logout"><button type="submit" class="text-button">退出登录</button></form></div>
+      <div class="student-account"><span>{{ student.name }} · {{ student.student_no }}</span><form method="post" action="/logout"><button type="submit" class="text-button">退出登录</button></form></div>
     </header>
     <main class="student-container">
   {% else %}

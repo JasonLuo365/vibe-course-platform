@@ -21,5 +21,15 @@ def test_login_logout_and_protected(client):
     assert r.status_code == 200
     r = client.get("/api/whoami")
     assert r.status_code == 200 and r.json()["username"] == "admin"
-    client.post("/logout")
+    response = client.post("/logout", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
     assert client.get("/api/whoami").status_code == 401
+def test_teacher_page_offers_logout_to_login_selection(client):
+    _mk_teacher()
+    client.post("/login", json={"username": "admin", "password": "pw123456"})
+
+    response = client.get("/")
+
+    assert '<form method="post" action="/logout">' in response.text
+    assert "退出登录" in response.text

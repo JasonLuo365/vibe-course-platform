@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -33,7 +34,7 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
 @router.post("/logout")
 def logout(request: Request):
     request.session.clear()
-    return {"ok": True}
+    return RedirectResponse(url="/login", status_code=303)
 
 
 @router.post("/student/login")
@@ -54,8 +55,7 @@ def student_login(body: StudentLoginIn, request: Request, db: Session = Depends(
 
 @router.post("/student/logout")
 def student_logout(request: Request):
-    request.session.clear()
-    return {"ok": True}
+    return logout(request)
 
 
 @router.get("/api/whoami")
