@@ -19,9 +19,5 @@ def verify_password(pw: str, stored: str) -> bool:
         return False
 
 
-def new_submit_token() -> str:
-    return "vs_" + secrets.token_urlsafe(24)
-
-
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()

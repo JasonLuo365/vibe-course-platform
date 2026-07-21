@@ -9,7 +9,7 @@ from .. import models
 from ..db import get_db
 from ..deps import get_student, get_teacher, rate_limit
 from ..errors import ApiError
-from ..security import hash_token, new_submit_token
+from ..security import hash_password, hash_token, verify_password
 from ..services.roster import import_roster
 
 router = APIRouter()
@@ -36,6 +36,8 @@ class RegisterIn(BaseModel):
     course_code: str
     student_no: str
     name: str
+    password: str
+    password_confirm: str
 
     @field_validator("course_code", "student_no", "name")
     @classmethod
@@ -43,6 +45,13 @@ class RegisterIn(BaseModel):
         value = " ".join(value.split())
         if not value or len(value) > 100:
             raise ValueError("字段不能为空或过长")
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def valid_password(cls, value: str) -> str:
+        if not 8 <= len(value) <= 128:
+            raise ValueError("密码长度须为 8 到 128 个字符")
         return value
 
 
@@ -166,19 +175,6 @@ def roster(course_id: int, body: RosterIn, db: Session = Depends(get_db),
     return import_roster(db, course_id, body.csv)
 
 
-@router.post("/students/{student_id}/reset-token")
-def reset_token(student_id: int, db: Session = Depends(get_db),
-                t: models.Teacher = Depends(get_teacher)):
-    s = db.get(models.Student, student_id)
-    if not s:
-        raise ApiError(404, "NOT_FOUND", "学生不存在")
-    token = new_submit_token()
-    s.submit_token_hash = hash_token(token)
-    s.web_session_version += 1
-    db.commit()
-    return {"student_id": student_id, "token": token}
-
-
 @router.post("/students/{student_id}/group")
 def teacher_move_student(student_id: int, body: MoveStudentIn, db: Session = Depends(get_db),
                          t: models.Teacher = Depends(get_teacher)):
@@ -200,16 +196,35 @@ def teacher_move_student(student_id: int, body: MoveStudentIn, db: Session = Dep
 @router.post("/api/student-registration", status_code=201)
 def student_registration(body: RegisterIn, request: Request, db: Session = Depends(get_db)):
     rate_limit(request)
+    if body.password != body.password_confirm:
+        raise ApiError(422, "PASSWORD_MISMATCH", "两次输入的密码不一致")
     enrollment = db.query(models.CourseEnrollment).filter_by(code_hash=hash_token(body.course_code)).first()
     if enrollment is None:
         raise ApiError(401, "INVALID_COURSE_CODE", "课程邀请码无效")
-    if db.query(models.Student).filter_by(course_id=enrollment.course_id, student_no=body.student_no).first():
-        raise ApiError(409, "STUDENT_EXISTS", "该学号已登记，请联系教师重置提交凭证")
-    token = new_submit_token()
-    student = models.Student(course_id=enrollment.course_id, student_no=body.student_no, name=body.name, submit_token_hash=hash_token(token))
-    db.add(student)
+    student = db.query(models.Student).filter_by(
+        course_id=enrollment.course_id, student_no=body.student_no
+    ).first()
+    if student is None:
+        student = models.Student(
+            course_id=enrollment.course_id,
+            student_no=body.student_no,
+            name=body.name,
+            password_hash=hash_password(body.password),
+        )
+        db.add(student)
+        created = True
+    elif student.name != body.name:
+        raise ApiError(409, "STUDENT_MISMATCH", "学号与姓名不匹配")
+    elif student.password_hash is None:
+        student.password_hash = hash_password(body.password)
+        student.web_session_version += 1
+        created = False
+    elif not verify_password(body.password, student.password_hash):
+        raise ApiError(409, "STUDENT_EXISTS", "该学生已登记，请使用忘记密码功能")
+    else:
+        created = False
     db.commit()
-    return {"student_no": student.student_no, "name": student.name, "submit_token": token}
+    return {"student_no": student.student_no, "name": student.name, "created": created}
 
 
 @router.get("/api/student-profile")

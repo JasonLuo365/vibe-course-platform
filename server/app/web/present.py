@@ -1,11 +1,10 @@
-import csv
 import io
 import json
 import pathlib
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -169,33 +168,6 @@ def present_data(db: Session, assignment: models.Assignment, settings: Any) -> l
     return rows
 
 
-@router.get("/assignments/{aid}/present", response_class=HTMLResponse)
-def present_page(
-    request: Request,
-    aid: int,
-    db: Session = Depends(get_db),
-    t: models.Teacher = Depends(get_teacher_page),
-):
-    from ..main import templates
-
-    assignment = db.get(models.Assignment, aid)
-    if assignment is None:
-        raise ApiError(404, "NOT_FOUND", "作业不存在")
-
-    settings = request.app.state.settings
-    groups = present_data(db, assignment, settings)
-
-    return templates.TemplateResponse(
-        request,
-        "present.html",
-        {
-            "teacher": t,
-            "assignment": assignment,
-            "groups": groups,
-        },
-    )
-
-
 def review_present_data(
     db: Session, assignment: models.Assignment
 ) -> list[dict[str, Any]]:
@@ -267,25 +239,6 @@ def review_present_data(
             }
         )
     return rows
-
-
-@router.get("/assignments/{aid}/review-present", response_class=HTMLResponse)
-def review_present_page(
-    request: Request,
-    aid: int,
-    db: Session = Depends(get_db),
-    t: models.Teacher = Depends(get_teacher_page),
-):
-    from ..main import templates
-
-    assignment = db.get(models.Assignment, aid)
-    if assignment is None:
-        raise ApiError(404, "NOT_FOUND", "作业不存在")
-    return templates.TemplateResponse(
-        request,
-        "review_present.html",
-        {"teacher": t, "assignment": assignment, "groups": review_present_data(db, assignment)},
-    )
 
 
 def _csv_row(
@@ -545,68 +498,4 @@ def export_xlsx(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="vibe-feedback.xlsx"'},
-    )
-
-
-@router.get("/assignments/{aid}/export.csv")
-def export_csv(
-    request: Request,
-    aid: int,
-    db: Session = Depends(get_db),
-    t: models.Teacher = Depends(get_teacher_page),
-):
-    assignment = db.get(models.Assignment, aid)
-    if assignment is None:
-        raise ApiError(404, "NOT_FOUND", "作业不存在")
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "学号", "姓名", "小组", "提交状态", "AI等级", "最终等级",
-        "个人评价", "个人改进建议", "教师备注", "小组最终等级", "小组评价", "各维度分(json)",
-    ])
-
-    groups = (
-        db.query(models.Group)
-        .filter_by(course_id=assignment.course_id)
-        .order_by(models.Group.name)
-        .all()
-    )
-    for group in groups:
-        group_evaluation = (
-            db.query(models.GroupEvaluation)
-            .filter_by(assignment_id=assignment.id, group_id=group.id)
-            .order_by(models.GroupEvaluation.created_at.desc())
-            .first()
-        )
-        group_override = _group_override(db, assignment.id, group.id)
-        students = (
-            db.query(models.Student)
-            .filter_by(group_id=group.id, course_id=assignment.course_id)
-            .order_by(models.Student.student_no)
-            .all()
-        )
-        for student in students:
-            writer.writerow([
-                _safe_csv_cell(cell)
-                for cell in _csv_row(
-                    db, assignment.id, student, group.name, group_evaluation, group_override
-                )
-            ])
-
-    ungrouped = (
-        db.query(models.Student)
-        .filter_by(course_id=assignment.course_id, group_id=None)
-        .order_by(models.Student.student_no)
-        .all()
-    )
-    for student in ungrouped:
-        writer.writerow([_safe_csv_cell(cell) for cell in _csv_row(db, assignment.id, student, "未分组")])
-
-    content = output.getvalue()
-    encoded = content.encode("utf-8")
-    return StreamingResponse(
-        io.BytesIO(encoded),
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="export.csv"'},
     )

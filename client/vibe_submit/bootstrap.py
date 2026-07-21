@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import os
 import shutil
 import subprocess
@@ -10,6 +11,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+
+import httpx
 
 from .config import ConfigError, _codex_home, _global_config_path, _toml_str, validate_server_url
 
@@ -222,18 +225,64 @@ def _chmod_private(path: Path) -> None:
         pass
 
 
-def _configure(student_no: str | None, token: str | None, server_url: str | None) -> bool:
-    if student_no is None:
-        student_no = input("学号: ").strip()
-    if token is None:
-        token = input("submit_token: ").strip()
+def _student_registration(
+    server_url: str, course_code: str, student_no: str, name: str, password: str, password_confirm: str
+) -> bool:
+    try:
+        response = httpx.post(
+            f"{server_url}/api/student-registration",
+            json={
+                "course_code": course_code,
+                "student_no": student_no,
+                "name": name,
+                "password": password,
+                "password_confirm": password_confirm,
+            },
+            timeout=30.0,
+        )
+    except httpx.RequestError as exc:
+        print(f"config: registration failed ({exc})")
+        return False
+    if response.is_success:
+        return True
+    try:
+        message = response.json().get("error", {}).get("message", response.text)
+    except Exception:
+        message = response.text
+    print(f"config: registration failed ({message})")
+    return False
+
+
+def _configure(
+    student_no: str | None,
+    name: str | None,
+    course_code: str | None,
+    password: str | None,
+    password_confirm: str | None,
+    server_url: str | None,
+) -> bool:
     if server_url is None:
         server_url = input("server URL: ").strip()
+    if course_code is None:
+        course_code = input("课程邀请码: ").strip()
+    if student_no is None:
+        student_no = input("学号: ").strip()
+    if name is None:
+        name = input("姓名: ").strip()
+    if password is None:
+        password = getpass.getpass("用户密码: ")
+    if password_confirm is None:
+        password_confirm = getpass.getpass("确认密码: ")
+    if password != password_confirm:
+        print("config: 两次输入的密码不一致")
+        return False
 
     try:
         server_url = validate_server_url(server_url)
     except ConfigError as exc:
         print(f"✗ config: {exc}")
+        return False
+    if not _student_registration(server_url, course_code, student_no, name, password, password_confirm):
         return False
 
     path = _global_config_path()
@@ -242,7 +291,7 @@ def _configure(student_no: str | None, token: str | None, server_url: str | None
         {
             "server_url": server_url,
             "student_no": student_no,
-            "submit_token": token,
+            "password": password,
         },
     )
     print(f"✓ config: written to {path}")
@@ -264,7 +313,14 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
     if not _register_marketplace(args.marketplace_url, args.marketplace_name):
         ok = False
 
-    if not _configure(args.student_no, args.token, args.server):
+    if not _configure(
+        args.student_no,
+        args.name,
+        args.course_code,
+        args.password,
+        args.password_confirm,
+        args.server,
+    ):
         ok = False
 
     doctor_code = _run_doctor()

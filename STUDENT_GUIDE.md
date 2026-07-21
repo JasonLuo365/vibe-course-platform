@@ -5,7 +5,7 @@
 - 作业代码；
 - 课程邀请码。
 
-首次安装时填写课程邀请码、学号和姓名，系统会自动登记并生成你的个人提交凭证。不要把任何令牌发到 Codex 对话中。
+首次安装时填写课程邀请码、学号、姓名，并设置两次相同的个人密码。请妥善保管密码，不要发到 Codex 对话中。
 
 ## 第一次安装：Windows 10/11
 
@@ -23,7 +23,7 @@ uvx --from $source vibe-submit bootstrap `
   --server "https://vibe.planlabopc.com"
 ```
 
-按提示输入课程邀请码、学号和姓名；服务器地址已固定，无需修改。看到 `doctor` 中的 `Server reachable` 后，在终端运行 `codex plugin add vibe-submit@vibe-course` 安装插件，然后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。
+按提示输入课程邀请码、学号、姓名、密码和确认密码；服务器地址已固定，无需修改。看到 `doctor` 中的 `Server reachable` 后，在终端运行 `codex plugin add vibe-submit@vibe-course` 安装插件，然后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。
 
 > 如果 PowerShell 显示“无法识别 uv/uvx”，关闭当前 PowerShell，再新建一个 PowerShell 窗口重试。
 
@@ -43,7 +43,7 @@ uvx --from "$source" vibe-submit bootstrap \
   --server "https://vibe.planlabopc.com"
 ```
 
-按提示输入课程邀请码、学号和姓名；服务器地址已固定，无需修改。看到 `doctor` 中的 `Server reachable` 后，在终端运行 `codex plugin add vibe-submit@vibe-course` 安装插件，然后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。若终端提示找不到 `uv`/`uvx`，关闭终端后重新打开，再运行一次上述完整命令。
+按提示输入课程邀请码、学号、姓名、密码和确认密码；服务器地址已固定，无需修改。看到 `doctor` 中的 `Server reachable` 后，在终端运行 `codex plugin add vibe-submit@vibe-course` 安装插件，然后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。若终端提示找不到 `uv`/`uvx`，关闭终端后重新打开，再运行一次上述完整命令。
 
 ## 首次组队
 
@@ -122,7 +122,7 @@ vibe-submit doctor
 
 **文件过大？** 单个文件不能超过 10 MB，整个作业包受教师设置的总大小限制。删除构建产物、依赖目录、密钥和大文件后再预览。
 
-**忘记令牌或令牌泄露？** 不要借用同学令牌。联系教师在“学生管理”中重置，教师会私密发送新的令牌；旧令牌会立刻失效。
+**忘记密码？** 打开平台登录页，选择“学生登录”并点击“忘记密码？”。输入学号后设置并确认新密码。
 
 **macOS 提示找不到 `uvx`？** 关闭终端后重新打开，再运行一次上述完整命令。
 

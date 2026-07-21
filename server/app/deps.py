@@ -2,13 +2,14 @@ import time
 from collections import defaultdict, deque
 
 from fastapi import Depends, Request
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session
 
 from . import models
 from .config import Settings
 from .db import get_db
 from .errors import ApiError
-from .security import hash_token
+from .security import verify_password
 from .web import PageAuthRequired
 
 
@@ -26,14 +27,23 @@ def get_settings_dep(request: Request) -> Settings:
     return request.app.state.settings
 
 
-def get_student(request: Request, db: Session = Depends(get_db)) -> models.Student:
+_student_basic = HTTPBasic(auto_error=False)
+
+
+def get_student(
+    request: Request,
+    credentials: HTTPBasicCredentials | None = Depends(_student_basic),
+    db: Session = Depends(get_db),
+) -> models.Student:
     rate_limit(request)
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        raise ApiError(401, "UNAUTHORIZED", "缺少 Bearer token")
-    s = db.query(models.Student).filter_by(submit_token_hash=hash_token(auth[7:])).first()
-    if not s:
-        raise ApiError(401, "UNAUTHORIZED", "token 无效或已重置")
+    if credentials is None:
+        raise ApiError(401, "UNAUTHORIZED", "需要学号和密码")
+    students = db.query(models.Student).filter_by(student_no=credentials.username).all()
+    if len(students) != 1 or not students[0].password_hash or not verify_password(
+        credentials.password, students[0].password_hash
+    ):
+        raise ApiError(401, "UNAUTHORIZED", "学号或密码错误")
+    s = students[0]
     return s
 
 

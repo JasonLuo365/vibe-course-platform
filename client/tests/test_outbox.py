@@ -18,7 +18,7 @@ def cfg(tmp_path, monkeypatch):
     return Config(
         server_url="https://example.com",
         student_no="2026001",
-        submit_token="secret-token",
+        password="secret-password",
         source="global",
     )
 
@@ -84,12 +84,12 @@ def test_get_outbox_missing_raises(cfg):
         get_outbox("does-not-exist")
 
 
-def test_retry_config_uses_current_token_and_saved_server(cfg, manifest, tmp_path):
+def test_retry_config_uses_current_password_and_saved_server(cfg, manifest, tmp_path):
     outbox_id = save_outbox(_make_zip(tmp_path / "orig.zip"), manifest, cfg)
-    active = Config("https://other.example", "2026001", "fresh-token", "global")
+    active = Config("https://other.example", "2026001", "fresh-password", "global")
     merged = retry_config(outbox_id, active)
     assert merged.server_url == "https://example.com"
-    assert merged.submit_token == "fresh-token"
+    assert merged.password == "fresh-password"
 
 
 def test_remove_outbox_after_success(cfg, manifest, tmp_path):

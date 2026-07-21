@@ -75,7 +75,7 @@ def main():
             if not db.get(models.Course, args.course_id):
                 raise SystemExit(f"Course does not exist: {args.course_id}")
             result = import_roster(db, args.course_id, _read_input(args.input))
-            print(result["tokens_csv"], end="")
+            print(f'{{"created_students": {result["created_students"]}}}')
             print(f"Created {result['created_students']} student(s).", file=sys.stderr)
 
         elif args.cmd == "create-assignment":

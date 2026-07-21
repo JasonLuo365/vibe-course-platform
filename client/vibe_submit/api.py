@@ -35,7 +35,6 @@ def upload(
     assignment_code = manifest["assignment_code"]
     url = f"{cfg.server_url.rstrip('/')}/api/submissions"
 
-    headers = {"Authorization": f"Bearer {cfg.submit_token}"}
     data = {
         "manifest": json.dumps(manifest, ensure_ascii=False),
         "force": "true" if force else "false",
@@ -55,7 +54,6 @@ def upload(
         transport=transport,
         data=data,
         files=files,
-        extra_headers=headers,
     )
 
 
@@ -78,13 +76,14 @@ def _request(
     extra_headers = kwargs.pop("extra_headers", {})
     headers = {
         "Accept": "application/json",
-        "Authorization": f"Bearer {cfg.submit_token}",
         **extra_headers,
     }
 
     try:
         with httpx.Client(timeout=DEFAULT_TIMEOUT, transport=transport) as client:
-            response = client.request(method, url, headers=headers, **kwargs)
+            response = client.request(
+                method, url, headers=headers, auth=(cfg.student_no, cfg.password), **kwargs
+            )
     except httpx.RequestError as exc:
         raise ApiError(0, "NETWORK", str(exc), None) from exc
 
