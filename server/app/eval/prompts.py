@@ -1,6 +1,52 @@
 import json
 
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v3"
+
+# These are the reusable, teacher-facing evaluation prompt templates.  Keep
+# their ids stable because each assignment stores the selected id.
+PROMPT_PROFILE_LABELS = {
+    "generic_experiment": "通用实验作业",
+    "team_experiment": "小组实验项目",
+    "team_vibe_coding": "小组 Vibe Coding 成果作业",
+    "coding_project": "编程项目",
+    "research_report": "研究报告",
+    "learning_reflection": "学习反思",
+}
+
+
+_PROFILE_INSTRUCTIONS = {
+    "generic_experiment": (
+        "这是实验项目的通用占位评价档案。当前没有额外的实验题目规则；"
+        "优先核验实验目标、过程证据、结果、分析与反思。"
+    ),
+    "team_experiment": (
+        "这是小组实验项目的通用占位评价档案。除成果外，重点核验成员分工、"
+        "协作过程和个人贡献证据。"
+    ),
+    "team_vibe_coding": (
+        "这是小组 Vibe Coding 成果作业。必须先依据小组最终提交的项目成果评分："
+        "功能达成、可运行/可演示性、界面与交互、完成度、细节、最终报告和交付质量是首要依据。"
+        "成品优秀时，可以得到高分；不得因聊天记录简短或提示词不复杂而扣分。"
+        "只有成品存在明显不足、运行/交付无法验证，或个人贡献无法归因时，才深入分析"
+        "成员与 Codex 的聊天记录，以诊断原因、确认个人贡献并给出修改建议。"
+        "聊天记录用于问题诊断和个人归因，不能完全补偿缺失的核心功能。"
+        "小组评价与个人评价独立输出：小组评价最终作品；个人评价只评价可验证的个人贡献，"
+        "不得把小组总分平均或复制给成员。无论成果好坏，反馈都必须包含具体亮点、问题和下一步修改建议。"
+    ),
+    "coding_project": "这是编程项目评价档案。重点核验功能、可运行性、代码质量和迭代过程。",
+    "research_report": "这是研究报告评价档案。重点核验论证、证据、概念理解和方法说明。",
+    "learning_reflection": "这是学习反思评价档案。重点核验过程证据、问题定位、修改行为和反思深度。",
+}
+
+
+def _profile_instruction(profile: str, custom_instructions: str) -> str:
+    base = _PROFILE_INSTRUCTIONS.get(
+        profile,
+        f"这是预留的评价档案“{profile}”。尚未填写该档案的专属规则，请按通用证据原则评分。",
+    )
+    if custom_instructions:
+        return f"{base}\n\n[本作业/实验的教师专属规则]\n{custom_instructions}"
+    return base
 
 _INDIVIDUAL_SCHEMA = {
     "type": "object",
@@ -119,15 +165,17 @@ def _format_rubric(rubric: list[dict]) -> str:
     for item in rubric:
         name = item.get("name", "未命名维度")
         weight = item.get("weight", 0)
-        criteria = item.get("criteria", "")
+        criteria = item.get("description") or item.get("criteria", "")
         lines.append(f"- {name}（权重 {weight}%）：{criteria}")
     return "\n".join(lines)
 
 
-def _system_prompt(rubric: list[dict]) -> str:
+def _system_prompt(
+    rubric: list[dict], profile: str, custom_instructions: str
+) -> str:
     return (
         "你是大学 Vibe Coding 课程的助教评审。"
-        "你只基于提供的证据（rollout 会话记录、代码节选、指标）进行评分，不得臆测任何未给出的信息。\n"
+        "你只基于提供的证据（rollout 会话记录、代码与最终报告节选、指标）进行评分，不得臆测任何未给出的信息。\n"
         "评分纪律：\n"
         "1. 每条评分结论必须能被证据支持；\n"
         "2. 每条 evidence 必须给出 session_id、turn 序号和原文 quote；\n"
@@ -139,12 +187,16 @@ def _system_prompt(rubric: list[dict]) -> str:
         "请在 flags 中明确标注「真实性风险」。\n\n"
         "评分维度与权重：\n"
         f"{_format_rubric(rubric)}\n\n"
+        "本次评价档案：\n"
+        f"{_profile_instruction(profile, custom_instructions)}\n\n"
         "输出必须是合法 JSON，严格符合以下 schema（不要包含 markdown 代码块）：\n"
         f"{json.dumps(_INDIVIDUAL_SCHEMA, ensure_ascii=False, indent=2)}\n"
     )
 
 
-def _group_system_prompt(rubric: list[dict]) -> str:
+def _group_system_prompt(
+    rubric: list[dict], profile: str, custom_instructions: str
+) -> str:
     return (
         "你是大学 Vibe Coding 课程的助教评审，现在需要对小组作业进行综合评审。"
         "你只基于提供的成员个人评估、指标和证据进行评分，不得臆测。\n"
@@ -154,6 +206,8 @@ def _group_system_prompt(rubric: list[dict]) -> str:
         "3. 若发现引用无法对应或无法验证，请在 flags 中标注「真实性风险」。\n\n"
         "评分维度与权重：\n"
         f"{_format_rubric(rubric)}\n\n"
+        "本次评价档案：\n"
+        f"{_profile_instruction(profile, custom_instructions)}\n\n"
         "输出必须是合法 JSON，严格符合以下 schema（不要包含 markdown 代码块）：\n"
         f"{json.dumps(_GROUP_SCHEMA, ensure_ascii=False, indent=2)}\n"
     )
@@ -164,6 +218,8 @@ def individual_messages(
     metrics: dict,
     rubric: list[dict],
     *,
+    profile: str = "generic_experiment",
+    custom_instructions: str = "",
     error_note: str | None = None,
 ) -> list[dict[str, str]]:
     user_content = (
@@ -176,7 +232,10 @@ def individual_messages(
         user_content += f"\n\n[上次输出错误，请修正后重新输出]\n{error_note}"
 
     return [
-        {"role": "system", "content": _system_prompt(rubric)},
+        {
+            "role": "system",
+            "content": _system_prompt(rubric, profile, custom_instructions),
+        },
         {"role": "user", "content": user_content},
     ]
 
@@ -186,10 +245,14 @@ def group_messages(
     metrics: dict,
     rubric: list[dict],
     *,
+    profile: str = "generic_experiment",
+    custom_instructions: str = "",
+    project_digest: str = "",
     error_note: str | None = None,
 ) -> list[dict[str, str]]:
     user_content = (
         "请根据以下成员个人评估、指标和评分标准，对小组进行综合评估。\n\n"
+        f"[小组最终项目成果节选]\n{project_digest or '未提供；不得虚构最终项目质量。'}\n\n"
         f"[成员评估]\n{json.dumps(member_evals, ensure_ascii=False, indent=2)}\n\n"
         f"[指标]\n{json.dumps(metrics, ensure_ascii=False, indent=2)}\n\n"
         f"[评分标准]\n{_format_rubric(rubric)}"
@@ -198,7 +261,9 @@ def group_messages(
         user_content += f"\n\n[上次输出错误，请修正后重新输出]\n{error_note}"
 
     return [
-        {"role": "system", "content": _group_system_prompt(rubric)},
+        {
+            "role": "system",
+            "content": _group_system_prompt(rubric, profile, custom_instructions),
+        },
         {"role": "user", "content": user_content},
     ]
-

@@ -310,7 +310,7 @@ class TestExportCsv:
 
 
 class TestExportWorkbook:
-    def test_export_xlsx_is_a_formatted_workbook(self, client, settings):
+    def test_export_xlsx_is_formatted_and_separates_long_feedback(self, client, settings):
         _setup_course_and_assignment(client)
         db = SessionLocal()
         assignment = db.query(models.Assignment).one()
@@ -320,6 +320,7 @@ class TestExportWorkbook:
         student.submit_token_hash = hash_token(token)
         db.commit()
         db.close()
+
         assert _upload(client, token, assignment.code, student.student_no).status_code == 201
         db = SessionLocal()
         run_worker_once(db, FakeLLMProvider(responses=[_valid_individual_json()]), settings)
@@ -328,9 +329,15 @@ class TestExportWorkbook:
         response = client.get(f"/assignments/{assignment.id}/export.xlsx")
         assert response.status_code == 200
         assert "spreadsheetml" in response.headers["content-type"]
+        assert "attachment" in response.headers["content-disposition"]
+
         workbook = load_workbook(io.BytesIO(response.content))
         assert workbook.sheetnames == ["个人反馈", "小组反馈"]
-        assert workbook["个人反馈"]["A1"].value.startswith("Vibe 作业反馈表")
-        assert workbook["个人反馈"].freeze_panes == "A5"
-        assert "需求理解" in workbook["个人反馈"]["I5"].value
-        assert workbook["个人反馈"]["G5"].alignment.wrap_text is True
+        feedback = workbook["个人反馈"]
+        assert feedback["A1"].value.startswith("Vibe 作业反馈表")
+        assert feedback.freeze_panes == "A5"
+        assert feedback["A5"].value == "2024001"
+        assert "更多功能测试" in feedback["H5"].value
+        assert "需求理解" in feedback["I5"].value
+        assert feedback["G5"].alignment.wrap_text is True
+        assert workbook["小组反馈"]["A4"].value == "小组"

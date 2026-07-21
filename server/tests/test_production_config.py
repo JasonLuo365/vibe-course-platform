@@ -31,4 +31,3 @@ def test_production_accepts_explicit_secure_settings(tmp_path):
     )
     app = create_app(settings)
     assert app.state.settings.environment == "production"
-

@@ -113,4 +113,3 @@ def test_safe_extract_containment(tmp_path):
         z.writestr("../escape.txt", b"x")  # zipfile 允许写入，safe_extract 必须拒绝
     with pytest.raises(ZipReject):
         safe_extract(str(p), str(tmp_path / "out"))
-

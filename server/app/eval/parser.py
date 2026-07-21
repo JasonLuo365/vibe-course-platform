@@ -138,4 +138,3 @@ def parse_rollout(path: str) -> RolloutTimeline:
         turns.append(Turn(kind=kind, text=text, ts=ts))
 
     return RolloutTimeline(session_id=session_id, path=path, turns=turns)
-

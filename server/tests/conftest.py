@@ -22,4 +22,3 @@ def client(settings):
     app = create_app(settings)
     with TestClient(app) as c:
         yield c
-

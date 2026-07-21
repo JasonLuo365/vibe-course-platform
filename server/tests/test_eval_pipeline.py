@@ -180,6 +180,35 @@ def _valid_group_json():
 
 
 class TestEvaluateIndividual:
+    def test_team_vibe_coding_profile_is_outcome_first(
+        self, timelines, code_digest_text, metrics, rubric
+    ):
+        provider = FakeLLMProvider(responses=[_valid_individual_json()])
+        evaluate_individual(
+            timelines, code_digest_text, metrics, rubric, provider,
+            profile="team_vibe_coding",
+        )
+        system = provider.calls[0]["messages"][0]["content"]
+        assert "最终提交的项目成果" in system
+        assert "聊天记录简短" in system
+
+    def test_profile_and_description_reach_the_llm(self, timelines, code_digest_text, metrics):
+        rubric = [{"name": "实验分析", "weight": 100, "description": "解释数据异常原因"}]
+        provider = FakeLLMProvider(responses=[_valid_individual_json()])
+        evaluate_individual(
+            timelines,
+            code_digest_text,
+            metrics,
+            rubric,
+            provider,
+            profile="teacher-01-experiment-01",
+            custom_instructions="【占位】等待题目与参考答案。",
+        )
+        system = provider.calls[0]["messages"][0]["content"]
+        assert "解释数据异常原因" in system
+        assert "teacher-01-experiment-01" in system
+        assert "等待题目与参考答案" in system
+
     def test_valid_evaluation_fields(self, timelines, code_digest_text, metrics, rubric):
         provider = FakeLLMProvider(responses=[_valid_individual_json()])
         result = evaluate_individual(timelines, code_digest_text, metrics, rubric, provider)
@@ -357,6 +386,17 @@ class TestEvaluateGroup:
         assert len(result["dimension_scores"]) == 2
         assert "无真实性风险" in result["flags"]
 
+    def test_group_project_digest_reaches_the_llm(self, rubric, metrics):
+        member_eval = json.loads(_valid_individual_json())
+        provider = FakeLLMProvider(responses=[_valid_group_json()])
+        evaluate_group(
+            [member_eval], metrics, rubric, provider,
+            profile="team_vibe_coding", project_digest="--- app.py ---\nprint('demo')",
+        )
+        user = _last_user_message(provider.calls[0]["messages"])
+        assert "小组最终项目成果节选" in user
+        assert "print('demo')" in user
+
 
 class TestOpenAICompatProvider:
     def test_retries_429_and_5xx_with_backoff(self):
@@ -393,4 +433,3 @@ def _last_user_message(messages):
         if msg.get("role") == "user":
             return msg.get("content", "")
     return ""
-

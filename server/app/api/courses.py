@@ -94,7 +94,9 @@ def _profile(db: Session, student: models.Student) -> dict:
     group = db.get(models.Group, student.group_id) if student.group_id else None
     enrollment = _enrollment(db, student.course_id)
     return {
-        "student_no": student.student_no, "name": student.name, "course_id": student.course_id,
+        "student_no": student.student_no,
+        "name": student.name,
+        "course_id": student.course_id,
         "group": {"id": group.id, "name": group.name} if group else None,
         "groups_locked": bool(enrollment and enrollment.groups_locked),
     }
@@ -117,10 +119,16 @@ def create_enrollment_code(course_id: int, body: EnrollmentIn, db: Session = Dep
     code = _new_course_code()
     enrollment = _enrollment(db, course_id)
     if enrollment is None:
-        enrollment = models.CourseEnrollment(course_id=course_id, code_hash=hash_token(code), max_group_size=body.max_group_size)
+        enrollment = models.CourseEnrollment(
+            course_id=course_id,
+            code_hash=hash_token(code),
+            enrollment_code=code,
+            max_group_size=body.max_group_size,
+        )
         db.add(enrollment)
     else:
         enrollment.code_hash = hash_token(code)
+        enrollment.enrollment_code = code
         enrollment.max_group_size = body.max_group_size
     db.commit()
     return {"course_id": course_id, "enrollment_code": code, "max_group_size": enrollment.max_group_size}
@@ -245,4 +253,3 @@ def student_join_group(body: JoinIn, student: models.Student = Depends(get_stude
     student.group_id = group.id
     db.commit()
     return _profile(db, student)
-

@@ -76,4 +76,3 @@ def safe_extract(zip_path: str, dest_dir: str) -> None:
                 os.makedirs(os.path.dirname(target), exist_ok=True)
                 with zf.open(info) as src, open(target, "wb") as out:
                     out.write(src.read())
-

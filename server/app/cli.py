@@ -88,6 +88,8 @@ def main():
                 title=body.title,
                 description=body.description,
                 rubric_json=[item.model_dump() for item in body.rubric],
+                evaluation_profile=body.evaluation_profile,
+                evaluation_instructions=body.evaluation_instructions,
                 opens_at=_as_naive_utc(body.opens_at),
                 deadline=_as_naive_utc(body.deadline),
                 max_package_mb=body.max_package_mb,
@@ -105,4 +107,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

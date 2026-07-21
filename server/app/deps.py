@@ -55,4 +55,3 @@ def rate_limit(request: Request) -> None:
     if len(dq) >= limit:
         raise ApiError(429, "RATE_LIMITED", "请求过于频繁，请稍后重试")
     dq.append(now)
-

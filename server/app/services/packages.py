@@ -18,4 +18,3 @@ def extract_package(s: Settings, attempt_id: int, zip_path: str) -> str:
     dest = os.path.join(s.data_dir, "extracted", str(attempt_id))
     safe_extract(zip_path, dest)
     return dest
-

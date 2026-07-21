@@ -38,4 +38,3 @@ def import_roster(db: Session, course_id: int, csv_text: str) -> dict:
         created += 1
     db.commit()
     return {"created_students": created, "tokens_csv": out.getvalue()}
-

@@ -50,4 +50,3 @@ def test_reset_token(client):
 
 def test_roster_requires_teacher(client):
     assert client.post("/courses", json={"name": "C", "term": ""}).status_code == 401
-

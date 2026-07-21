@@ -73,7 +73,7 @@ def build_evidence_pack(
 ) -> str:
     parts = [
         "=== 指标 ===\n" + json.dumps(metrics, ensure_ascii=False, indent=2),
-        "=== 代码节选 ===\n" + code_digest,
+        "=== 项目代码与最终报告节选 ===\n" + code_digest,
         "=== Rollout 记录 ===",
     ]
     for timeline in timelines:
@@ -245,9 +245,18 @@ def evaluate_individual(
     metrics: dict,
     rubric: list[dict],
     provider,
+    *,
+    profile: str = "generic_experiment",
+    custom_instructions: str = "",
 ) -> dict:
     evidence_pack = build_evidence_pack(timelines, code_digest, metrics)
-    messages = individual_messages(evidence_pack, metrics, rubric)
+    messages = individual_messages(
+        evidence_pack,
+        metrics,
+        rubric,
+        profile=profile,
+        custom_instructions=custom_instructions,
+    )
 
     last_error: Exception | None = None
     for attempt in range(3):
@@ -268,8 +277,19 @@ def evaluate_group(
     metrics: dict,
     rubric: list[dict],
     provider,
+    *,
+    profile: str = "generic_experiment",
+    custom_instructions: str = "",
+    project_digest: str = "",
 ) -> dict:
-    messages = group_messages(member_evals, metrics, rubric)
+    messages = group_messages(
+        member_evals,
+        metrics,
+        rubric,
+        profile=profile,
+        custom_instructions=custom_instructions,
+        project_digest=project_digest,
+    )
 
     last_error: Exception | None = None
     for attempt in range(3):
@@ -281,4 +301,3 @@ def evaluate_group(
             messages = _append_error_note(messages, _error_note(exc))
 
     raise EvalError(f"小组评估失败，已重试 2 次：{last_error}")
-

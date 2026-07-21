@@ -344,38 +344,76 @@ def _safe_csv_cell(value: Any) -> str:
     return "'" + text if text.startswith(("=", "+", "-", "@")) else text
 
 
-def _assignment_export_records(db: Session, assignment: models.Assignment) -> list[dict[str, Any]]:
-    """Structured records used by the formatted workbook."""
+def _assignment_export_records(
+    db: Session, assignment: models.Assignment
+) -> list[dict[str, Any]]:
+    """Return structured export records once, for both CSV and formatted Excel."""
     records: list[dict[str, Any]] = []
-    groups = db.query(models.Group).filter_by(course_id=assignment.course_id).order_by(models.Group.name).all()
-    specs: list[tuple[models.Group | None, list[models.Student]]] = []
+    groups = (
+        db.query(models.Group)
+        .filter_by(course_id=assignment.course_id)
+        .order_by(models.Group.name)
+        .all()
+    )
+    group_specs: list[tuple[models.Group | None, list[models.Student]]] = []
     for group in groups:
-        students = db.query(models.Student).filter_by(group_id=group.id, course_id=assignment.course_id).order_by(models.Student.student_no).all()
+        students = (
+            db.query(models.Student)
+            .filter_by(group_id=group.id, course_id=assignment.course_id)
+            .order_by(models.Student.student_no)
+            .all()
+        )
         if students:
-            specs.append((group, students))
-    ungrouped = db.query(models.Student).filter_by(course_id=assignment.course_id, group_id=None).order_by(models.Student.student_no).all()
+            group_specs.append((group, students))
+    ungrouped = (
+        db.query(models.Student)
+        .filter_by(course_id=assignment.course_id, group_id=None)
+        .order_by(models.Student.student_no)
+        .all()
+    )
     if ungrouped:
-        specs.append((None, ungrouped))
-    for group, students in specs:
+        group_specs.append((None, ungrouped))
+
+    for group, students in group_specs:
         group_evaluation = None
         group_override = None
-        if group:
-            group_evaluation = db.query(models.GroupEvaluation).filter_by(assignment_id=assignment.id, group_id=group.id).order_by(models.GroupEvaluation.created_at.desc()).first()
+        if group is not None:
+            group_evaluation = (
+                db.query(models.GroupEvaluation)
+                .filter_by(assignment_id=assignment.id, group_id=group.id)
+                .order_by(models.GroupEvaluation.created_at.desc())
+                .first()
+            )
             group_override = _group_override(db, assignment.id, group.id)
         for student in students:
-            submission = db.query(models.Submission).filter_by(assignment_id=assignment.id, student_id=student.id).first()
-            attempt = db.get(models.SubmissionAttempt, submission.current_attempt_id) if submission and submission.current_attempt_id else None
+            submission = (
+                db.query(models.Submission)
+                .filter_by(assignment_id=assignment.id, student_id=student.id)
+                .first()
+            )
+            attempt = (
+                db.get(models.SubmissionAttempt, submission.current_attempt_id)
+                if submission and submission.current_attempt_id
+                else None
+            )
             evaluation = _latest_evaluation(db, attempt)
-            records.append({
-                "student": student, "group_name": group.name if group else "未分组",
-                "submission": submission, "evaluation": evaluation,
-                "override": _override_for_student(db, assignment.id, student.id),
-                "group_evaluation": group_evaluation, "group_override": group_override,
-            })
+            override = _override_for_student(db, assignment.id, student.id)
+            records.append(
+                {
+                    "student": student,
+                    "group_name": group.name if group else "未分组",
+                    "submission": submission,
+                    "evaluation": evaluation,
+                    "override": override,
+                    "group_evaluation": group_evaluation,
+                    "group_override": group_override,
+                }
+            )
     return records
 
 
 def _safe_excel_cell(value: Any) -> str:
+    """Excel applies formulas to leading operators, so retain the CSV protection."""
     return _safe_csv_cell(value)
 
 
@@ -390,6 +428,7 @@ def _style_export_sheet(sheet, assignment: models.Assignment, headers: list[str]
     sheet.cell(2, 1, f"作业码：{assignment.code}    截止时间：{assignment.deadline}")
     sheet.cell(2, 1).font = Font(color="075985", italic=True, bold=True)
     sheet.cell(2, 1).fill = PatternFill("solid", fgColor="E0F2FE")
+    sheet.cell(2, 1).alignment = Alignment(vertical="center")
     sheet.row_dimensions[2].height = 22
     for index, header in enumerate(headers, start=1):
         cell = sheet.cell(4, index, header)
@@ -417,13 +456,24 @@ def _write_export_row(sheet, row_index: int, values: list[Any]) -> None:
 def _dimension_summary(evaluation: models.Evaluation | None) -> str:
     lines: list[str] = []
     for dimension in (evaluation.dimension_scores_json if evaluation else []):
-        if isinstance(dimension, dict):
-            lines.append(f"• {dimension.get('name', '未命名维度')}｜{dimension.get('score', '')} 分｜权重 {dimension.get('weight', '')}%\n  {dimension.get('rationale', '')}".rstrip())
+        if not isinstance(dimension, dict):
+            continue
+        name = dimension.get("name", "未命名维度")
+        score = dimension.get("score", "")
+        weight = dimension.get("weight", "")
+        rationale = dimension.get("rationale", "")
+        lines.append(f"• {name}｜{score} 分｜权重 {weight}%\n  {rationale}".rstrip())
     return "\n\n".join(lines)
 
 
 @router.get("/assignments/{aid}/export.xlsx")
-def export_xlsx(request: Request, aid: int, db: Session = Depends(get_db), t: models.Teacher = Depends(get_teacher_page)):
+def export_xlsx(
+    request: Request,
+    aid: int,
+    db: Session = Depends(get_db),
+    t: models.Teacher = Depends(get_teacher_page),
+):
+    """Export a teacher-readable workbook instead of forcing long feedback into CSV."""
     assignment = db.get(models.Assignment, aid)
     if assignment is None:
         raise ApiError(404, "NOT_FOUND", "作业不存在")
@@ -431,31 +481,71 @@ def export_xlsx(request: Request, aid: int, db: Session = Depends(get_db), t: mo
     workbook = Workbook()
     feedback = workbook.active
     feedback.title = "个人反馈"
-    _style_export_sheet(feedback, assignment, ["学号", "姓名", "小组", "提交状态", "AI 等级", "最终等级", "个人评价", "改进建议", "评分维度与说明", "教师备注"], [14, 12, 12, 13, 10, 10, 42, 42, 54, 26])
-    for index, record in enumerate(records, start=5):
-        submission, evaluation, override = record["submission"], record["evaluation"], record["override"]
-        improvements = "\n".join(f"• {item}" for item in (evaluation.feedback_json if evaluation else []))
-        _write_export_row(feedback, index, [record["student"].student_no, record["student"].name, record["group_name"], submission.status if submission else "未提交", evaluation.grade if evaluation else "", _final_grade(override, evaluation) or "", evaluation.rationale if evaluation else "", improvements, _dimension_summary(evaluation), override.comment if override and not override.stale else ""])
-        feedback.row_dimensions[index].height = 150
+    feedback_headers = [
+        "学号", "姓名", "小组", "提交状态", "AI 等级", "最终等级",
+        "个人评价", "改进建议", "评分维度与说明", "教师备注",
+    ]
+    _style_export_sheet(
+        feedback,
+        assignment,
+        feedback_headers,
+        [14, 12, 12, 13, 10, 10, 42, 42, 54, 26],
+    )
+    for row_index, record in enumerate(records, start=5):
+        submission = record["submission"]
+        evaluation = record["evaluation"]
+        override = record["override"]
+        _write_export_row(
+            feedback,
+            row_index,
+            [
+                record["student"].student_no,
+                record["student"].name,
+                record["group_name"],
+                submission.status if submission else "未提交",
+                evaluation.grade if evaluation else "",
+                _final_grade(override, evaluation) or "",
+                evaluation.rationale if evaluation else "",
+                "\n".join(f"• {item}" for item in (evaluation.feedback_json if evaluation else [])),
+                _dimension_summary(evaluation),
+                override.comment if override and not override.stale else "",
+            ],
+        )
+        feedback.row_dimensions[row_index].height = 150
 
-    groups = workbook.create_sheet("小组反馈")
-    _style_export_sheet(groups, assignment, ["小组", "成员", "最终等级", "小组评价"], [20, 36, 12, 82])
-    seen: set[str] = set()
-    row = 5
+    group_sheet = workbook.create_sheet("小组反馈")
+    group_headers = ["小组", "成员", "最终等级", "小组评价"]
+    _style_export_sheet(group_sheet, assignment, group_headers, [20, 36, 12, 82])
+    group_rows: dict[str, dict[str, Any]] = {}
     for record in records:
-        if record["group_name"] in seen:
-            continue
-        seen.add(record["group_name"])
+        group_rows.setdefault(record["group_name"], record)
+    for row_index, record in enumerate(group_rows.values(), start=5):
         group_evaluation = record["group_evaluation"]
-        members = "、".join(f"{item['student'].name}（{item['student'].student_no}）" for item in records if item["group_name"] == record["group_name"])
-        _write_export_row(groups, row, [record["group_name"], members, _final_grade(record["group_override"], group_evaluation) or "", group_evaluation.rationale if group_evaluation else ""])
-        groups.row_dimensions[row].height = 96
-        row += 1
+        members = "、".join(
+            f"{item['student'].name}（{item['student'].student_no}）"
+            for item in records
+            if item["group_name"] == record["group_name"]
+        )
+        _write_export_row(
+            group_sheet,
+            row_index,
+            [
+                record["group_name"],
+                members,
+                _final_grade(record["group_override"], group_evaluation) or "",
+                group_evaluation.rationale if group_evaluation else "",
+            ],
+        )
+        group_sheet.row_dimensions[row_index].height = 96
 
     output = io.BytesIO()
     workbook.save(output)
     output.seek(0)
-    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="vibe-feedback.xlsx"'})
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="vibe-feedback.xlsx"'},
+    )
 
 
 @router.get("/assignments/{aid}/export.csv")

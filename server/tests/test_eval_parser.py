@@ -263,4 +263,3 @@ class TestComputeMetrics:
         timeline = parse_rollout(str(path))
         metrics = compute_metrics([timeline])
         assert metrics["files_touched"] == 2
-

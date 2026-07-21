@@ -58,6 +58,26 @@ def _next_group_generation(db: Session, assignment_id: int, group_id: int) -> in
     return max_gen + 1
 
 
+def _group_project_digest(
+    member_attempts: list[tuple[models.Student, models.SubmissionAttempt]],
+    settings: Settings,
+    max_chars: int = 16000,
+) -> str:
+    """Provide the group evaluator with actual submitted artifacts, not just AI summaries."""
+    parts: list[str] = []
+    seen: set[str] = set()
+    for member, attempt in member_attempts:
+        digest = code_digest(_extract_dir_for_attempt(attempt, settings), max_chars=8000)
+        if digest in seen:
+            continue
+        seen.add(digest)
+        parts.append(f"=== {member.student_no} 提交的最终项目 ===\n{digest}")
+        if len("\n\n".join(parts)) >= max_chars:
+            break
+    full = "\n\n".join(parts)
+    return full[:max_chars]
+
+
 def evaluate_attempt(
     db: Session,
     attempt: models.SubmissionAttempt,
@@ -73,9 +93,19 @@ def evaluate_attempt(
     submission = db.get(models.Submission, attempt.submission_id)
     assignment = db.get(models.Assignment, submission.assignment_id) if submission else None
     rubric = assignment.rubric_json if assignment else []
+    profile = (assignment.evaluation_profile if assignment else None) or "generic_experiment"
+    instructions = (assignment.evaluation_instructions if assignment else None) or ""
 
     try:
-        result = evaluate_individual(timelines, digest, metrics, rubric, provider)
+        result = evaluate_individual(
+            timelines,
+            digest,
+            metrics,
+            rubric,
+            provider,
+            profile=profile,
+            custom_instructions=instructions,
+        )
     except EvalError as e:
         error = str(e)
         attempt.status = "failed"
@@ -96,6 +126,8 @@ def evaluate_attempt(
         evidence_json=result["evidence"],
         model=getattr(provider, "model", settings.llm_model),
         prompt_version=result.get("prompt_version", PROMPT_VERSION),
+        prompt_profile=profile,
+        prompt_instructions=instructions,
     )
     db.add(ev)
 
@@ -131,6 +163,8 @@ def _maybe_evaluate_group(
     group_id = student.group_id
     assignment = db.get(models.Assignment, assignment_id)
     rubric = assignment.rubric_json if assignment else []
+    profile = (assignment.evaluation_profile if assignment else None) or "generic_experiment"
+    instructions = (assignment.evaluation_instructions if assignment else None) or ""
 
     members = db.query(models.Student).filter_by(group_id=group_id).all()
     member_attempts: list[tuple[models.Student, models.SubmissionAttempt]] = []
@@ -174,7 +208,16 @@ def _maybe_evaluate_group(
         merged_metrics["error_fix_cycles"] += metrics["error_fix_cycles"]
         merged_metrics["files_touched"] += metrics["files_touched"]
 
-    result = evaluate_group(member_evals, merged_metrics, rubric, provider)
+    project_digest = _group_project_digest(member_attempts, settings)
+    result = evaluate_group(
+        member_evals,
+        merged_metrics,
+        rubric,
+        provider,
+        profile=profile,
+        custom_instructions=instructions,
+        project_digest=project_digest,
+    )
     generation = _next_group_generation(db, assignment_id, group_id)
     ge = models.GroupEvaluation(
         assignment_id=assignment_id,
@@ -182,8 +225,17 @@ def _maybe_evaluate_group(
         generation=generation,
         grade=result["grade"],
         rationale=result["rationale"],
-        contribution_json={"members": member_evals, "missing": []},
+        contribution_json={
+            "members": member_evals,
+            "missing": [],
+            "dimension_scores": result["dimension_scores"],
+            "feedback": result["feedback"],
+            "flags": result["flags"],
+        },
         evidence_json=result.get("evidence", []),
+        prompt_version=result.get("prompt_version", PROMPT_VERSION),
+        prompt_profile=profile,
+        prompt_instructions=instructions,
     )
     db.add(ge)
     db.commit()
@@ -202,6 +254,8 @@ def evaluate_group_job(
     missing = missing or []
     assignment = db.get(models.Assignment, assignment_id)
     rubric = assignment.rubric_json if assignment else []
+    profile = (assignment.evaluation_profile if assignment else None) or "generic_experiment"
+    instructions = (assignment.evaluation_instructions if assignment else None) or ""
 
     members = db.query(models.Student).filter_by(group_id=group_id).all()
     member_attempts: list[tuple[models.Student, models.SubmissionAttempt]] = []
@@ -251,7 +305,16 @@ def evaluate_group_job(
     if not member_evals:
         return 0
 
-    result = evaluate_group(member_evals, merged_metrics, rubric, provider)
+    project_digest = _group_project_digest(member_attempts, settings)
+    result = evaluate_group(
+        member_evals,
+        merged_metrics,
+        rubric,
+        provider,
+        profile=profile,
+        custom_instructions=instructions,
+        project_digest=project_digest,
+    )
     rationale = result["rationale"]
     if missing:
         rationale = "缺员: " + ", ".join(m.student_no for m in missing) + "\n" + rationale
@@ -263,10 +326,18 @@ def evaluate_group_job(
         generation=generation,
         grade=result["grade"],
         rationale=rationale,
-        contribution_json={"members": member_evals, "missing": [m.student_no for m in missing]},
+        contribution_json={
+            "members": member_evals,
+            "missing": [m.student_no for m in missing],
+            "dimension_scores": result["dimension_scores"],
+            "feedback": result["feedback"],
+            "flags": result["flags"],
+        },
         evidence_json=result.get("evidence", []),
+        prompt_version=result.get("prompt_version", PROMPT_VERSION),
+        prompt_profile=profile,
+        prompt_instructions=instructions,
     )
     db.add(ge)
     db.commit()
     return 1
-

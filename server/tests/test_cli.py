@@ -55,4 +55,3 @@ def test_cli_rejects_duplicate_teacher(monkeypatch, settings):
     _run_cli(monkeypatch, settings, ["create-teacher", "teacher", "Teacher"])
     with pytest.raises(SystemExit, match="Teacher already exists"):
         _run_cli(monkeypatch, settings, ["create-teacher", "teacher", "Teacher"])
-

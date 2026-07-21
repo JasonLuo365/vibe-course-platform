@@ -34,4 +34,3 @@ def test_rate_limit_uses_forwarded_ip_only_when_enabled(client, settings):
     h = {"Authorization": f"Bearer {token}"}
     assert client.get("/api/student/ping", headers={**h, "X-Forwarded-For": "203.0.113.10"}).status_code == 200
     assert client.get("/api/student/ping", headers={**h, "X-Forwarded-For": "203.0.113.11"}).status_code == 200
-

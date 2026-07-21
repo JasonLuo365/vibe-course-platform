@@ -154,4 +154,3 @@ class TestDeadlineSweep:
         assert "2" in ge.rationale
         assert ge.contribution_json["missing"] == ["2"]
         db.close()
-

@@ -27,6 +27,8 @@ class AssignmentIn(BaseModel):
     title: str
     description: str = ""
     rubric: list[RubricItem]
+    evaluation_profile: str = "generic_experiment"
+    evaluation_instructions: str = ""
     opens_at: datetime
     deadline: datetime
     max_package_mb: int = 50
@@ -37,6 +39,47 @@ class AssignmentIn(BaseModel):
         if not v or sum(i.weight for i in v) != 100:
             raise ValueError("rubric 权重和必须为 100")
         return v
+
+    @field_validator("evaluation_profile")
+    @classmethod
+    def evaluation_profile_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("evaluation_profile 不能为空")
+        if len(value) > 100:
+            raise ValueError("evaluation_profile 最多 100 个字符")
+        return value
+
+    @field_validator("evaluation_instructions")
+    @classmethod
+    def evaluation_instructions_size(cls, value: str) -> str:
+        if len(value) > 12000:
+            raise ValueError("evaluation_instructions 最多 12000 个字符")
+        return value.strip()
+
+
+class EvaluationConfigIn(BaseModel):
+    """Teacher-owned prompt slot for one concrete experiment assignment."""
+
+    evaluation_profile: str = "generic_experiment"
+    evaluation_instructions: str = ""
+
+    @field_validator("evaluation_profile")
+    @classmethod
+    def evaluation_profile_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("evaluation_profile 不能为空")
+        if len(value) > 100:
+            raise ValueError("evaluation_profile 最多 100 个字符")
+        return value
+
+    @field_validator("evaluation_instructions")
+    @classmethod
+    def evaluation_instructions_size(cls, value: str) -> str:
+        if len(value) > 12000:
+            raise ValueError("evaluation_instructions 最多 12000 个字符")
+        return value.strip()
 
 
 def _as_naive_utc(dt: datetime) -> datetime:
@@ -61,12 +104,34 @@ def create_assignment(course_id: int, body: AssignmentIn, db: Session = Depends(
         course_id=course_id, code=_new_code(db), title=body.title,
         description=body.description,
         rubric_json=[i.model_dump() for i in body.rubric],
+        evaluation_profile=body.evaluation_profile,
+        evaluation_instructions=body.evaluation_instructions,
         opens_at=_as_naive_utc(body.opens_at),
         deadline=_as_naive_utc(body.deadline),
         max_package_mb=body.max_package_mb)
     db.add(a)
     db.commit()
     return {"id": a.id, "code": a.code}
+
+
+@router.put("/assignments/{assignment_id}/evaluation-config")
+def update_evaluation_config(
+    assignment_id: int,
+    body: EvaluationConfigIn,
+    db: Session = Depends(get_db),
+    t: models.Teacher = Depends(get_teacher),
+):
+    assignment = db.get(models.Assignment, assignment_id)
+    if assignment is None:
+        raise ApiError(404, "NOT_FOUND", "作业不存在")
+    assignment.evaluation_profile = body.evaluation_profile
+    assignment.evaluation_instructions = body.evaluation_instructions
+    db.commit()
+    return {
+        "id": assignment.id,
+        "evaluation_profile": assignment.evaluation_profile,
+        "evaluation_instructions": assignment.evaluation_instructions,
+    }
 
 
 @router.get("/api/assignments/{code}/meta")
@@ -91,4 +156,3 @@ def assignment_meta(code: str, db: Session = Depends(get_db),
         "min_client_version": s.min_client_version,
         "supported_manifest_versions": s.supported_manifest_versions,
     }
-

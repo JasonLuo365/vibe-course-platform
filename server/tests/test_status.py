@@ -30,4 +30,3 @@ def test_status_cross_course_returns_404(client):
     r = client.get(f"/api/submissions/status?assignment_code={code2}",
                    headers={"Authorization": f"Bearer {token1}"})
     assert r.status_code == 404
-

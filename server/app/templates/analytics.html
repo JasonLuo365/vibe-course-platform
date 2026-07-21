@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block title %}数据分析{% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">课程数据</p><h1>数据分析</h1><p class="page-summary">课程级的提交与 AI 评估分布；具体记录请在相应作业中查看。</p></div></div>
-<div class="analytics-grid"><section class="card metric-card"><span>提交记录</span><strong>{{ submissions }}</strong></section><section class="card"><h2>提交状态</h2><ul class="stat-list">{% for status, count in status_counts|dictsort %}<li><span>{{ status }}</span><b>{{ count }}</b></li>{% else %}<li>暂无数据</li>{% endfor %}</ul></section><section class="card"><h2>AI 等级分布</h2><ul class="stat-list">{% for grade, count in grade_counts|dictsort %}<li><span>{{ grade }}</span><b>{{ count }}</b></li>{% else %}<li>暂无评估</li>{% endfor %}</ul></section></div>
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">课程数据</p>
+    <h1>数据分析</h1>
+    <p class="page-summary">课程级的提交与 AI 评估分布；具体记录请在相应作业中查看。</p>
+  </div>
+</div>
+<div class="analytics-grid">
+  <section class="card metric-card"><span>提交记录</span><strong>{{ submissions }}</strong></section>
+  <section class="card"><h2>提交状态</h2><ul class="stat-list">{% for status, count in status_counts|dictsort %}<li><span>{{ status }}</span><b>{{ count }}</b></li>{% else %}<li>暂无数据</li>{% endfor %}</ul></section>
+  <section class="card"><h2>AI 等级分布</h2><ul class="stat-list">{% for grade, count in grade_counts|dictsort %}<li><span>{{ grade }}</span><b>{{ count }}</b></li>{% else %}<li>暂无评估</li>{% endfor %}</ul></section>
+</div>
 {% endblock %}

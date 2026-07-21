@@ -1,23 +1,101 @@
 {% extends "base.html" %}
 {% block title %}学生管理{% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">课程管理</p><h1>学生管理</h1><p class="page-summary">查看花名册、小组与提交状态。重置令牌后，旧令牌会立即失效。</p></div></div>
+<div class="page-heading">
+  <div>
+    <p class="eyebrow">课程管理</p>
+    <h1>学生管理</h1>
+    <p class="page-summary">查看花名册、小组与提交状态。重置令牌后，旧令牌会立即失效。</p>
+  </div>
+</div>
 <section class="card">
   <h2>学生自助登记与固定分组</h2>
   <p class="page-summary">生成邀请码后，学生安装插件时填写邀请码、学号和姓名即可登记。锁定后学生不能自行创建或加入小组，教师仍可在首次提交前调整。</p>
-  {% for course in courses %}{% set enrollment = enrollments.get(course.id) %}
-  <div class="dashboard-actions" style="margin:10px 0;align-items:center;"><strong>{{ course.name }} {{ course.term }}</strong><span>{% if enrollment %}{% if enrollment.groups_locked %}分组已锁定{% else %}分组开放中{% endif %} · 每组最多 {{ enrollment.max_group_size }} 人{% else %}尚未生成邀请码{% endif %}</span><button class="button button-small enrollment-code" data-course-id="{{ course.id }}">生成/重置邀请码</button>{% if enrollment %}<button class="button button-small group-lock" data-course-id="{{ course.id }}" data-locked="{{ 'true' if enrollment.groups_locked else 'false' }}">{{ '解锁分组' if enrollment.groups_locked else '锁定分组' }}</button>{% endif %}<button class="button button-small create-group" data-course-id="{{ course.id }}">教师创建小组</button></div>
+  {% for course in courses %}
+  {% set enrollment = enrollments.get(course.id) %}
+  <div class="dashboard-actions" style="margin: 10px 0; align-items: center;">
+    <strong>{{ course.name }} {{ course.term }}</strong>
+    <span>{% if enrollment %}{% if enrollment.groups_locked %}分组已锁定{% else %}分组开放中{% endif %} · 每组最多 {{ enrollment.max_group_size }} 人{% else %}尚未生成邀请码{% endif %}</span>
+    <label class="inline-field">每组最多人数
+      <input class="enrollment-size" data-course-id="{{ course.id }}" type="number" min="2" max="20" value="{{ enrollment.max_group_size if enrollment else 6 }}">
+    </label>
+    <button class="button button-small enrollment-code" data-course-id="{{ course.id }}">生成/重置邀请码</button>
+    <output class="invite-result" data-course-id="{{ course.id }}">{% if enrollment and enrollment.enrollment_code %}当前邀请码：{{ enrollment.enrollment_code }}{% elif enrollment %}旧邀请码无法恢复，请重新生成。{% endif %}</output>
+    {% if enrollment %}<button class="button button-small group-lock" data-course-id="{{ course.id }}" data-locked="{{ 'true' if enrollment.groups_locked else 'false' }}">{{ '解锁分组' if enrollment.groups_locked else '锁定分组' }}</button>{% endif %}
+  </div>
   {% endfor %}
 </section>
-<section class="card"><table class="assign-table"><thead><tr><th>课程</th><th>学号</th><th>姓名</th><th>小组</th><th>提交状态</th><th>令牌</th></tr></thead><tbody>
-{% for row in rows %}<tr><td>{{ row.course.name if row.course else '-' }}</td><td>{{ row.student.student_no }}</td><td>{{ row.student.name }}</td><td><select class="student-group" data-student-id="{{ row.student.id }}"><option value="">未分组</option>{% for group in groups_by_course.get(row.student.course_id, []) %}<option value="{{ group.id }}" {% if row.group_id == group.id %}selected{% endif %}>{{ group.name }}</option>{% endfor %}</select></td><td>{{ row.statuses|join(', ') if row.statuses else '未提交' }}</td><td><button class="text-button reset-token" type="button" data-student-id="{{ row.student.id }}" data-student-name="{{ row.student.name }}">重置</button></td></tr>
-{% else %}<tr><td colspan="6" class="empty">尚未登记学生。</td></tr>{% endfor %}</tbody></table></section>
+<section class="card">
+  <table class="assign-table">
+    <thead><tr><th>课程</th><th>学号</th><th>姓名</th><th>小组</th><th>提交状态</th><th>令牌</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.course.name if row.course else '-' }}</td>
+        <td>{{ row.student.student_no }}</td>
+        <td>{{ row.student.name }}</td>
+        <td><select class="student-group" data-student-id="{{ row.student.id }}"><option value="">未分组</option>{% for group in groups_by_course.get(row.student.course_id, []) %}<option value="{{ group.id }}" {% if row.group_id == group.id %}selected{% endif %}>{{ group.name }}</option>{% endfor %}</select></td>
+        <td>{{ row.statuses|join(', ') if row.statuses else '未提交' }}</td>
+        <td><button class="text-button reset-token" type="button" data-student-id="{{ row.student.id }}" data-student-name="{{ row.student.name }}">重置</button></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty">尚未导入学生名单。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
 {% endblock %}
-{% block scripts %}<script>
-async function groupRequest(url, method, body) { const response = await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined}); const data = await response.json(); if (!response.ok) throw new Error(data.detail?.message || '操作失败'); return data; }
-document.querySelectorAll('.reset-token').forEach((button) => { button.addEventListener('click', async () => { const name = button.dataset.studentName; if (!confirm(`确定重置 ${name} 的提交令牌吗？旧令牌将立即失效。`)) return; button.disabled = true; try { const response = await fetch(`/students/${button.dataset.studentId}/reset-token`, {method: 'POST'}); const data = await response.json(); if (!response.ok) throw new Error(data.detail?.message || '重置失败'); alert(`请仅通过私密渠道发送给 ${name}。新提交令牌：\n\n${data.token}\n\n关闭后无法再次查看此令牌。`); } catch (error) { alert(error.message || '重置失败'); } finally { button.disabled = false; } }); });
-document.querySelectorAll('.enrollment-code').forEach((button) => button.addEventListener('click', async () => { const max = prompt('每组最多人数（2–20）', '6'); if (max === null) return; try { const data = await groupRequest(`/courses/${button.dataset.courseId}/enrollment-code`, 'POST', {max_group_size: Number(max)}); alert(`请私密或在课堂上发给学生的邀请码：\n\n${data.enrollment_code}\n\n该码仅显示这一次。`); location.reload(); } catch (e) { alert(e.message); } }));
-document.querySelectorAll('.group-lock').forEach((button) => button.addEventListener('click', async () => { const locked = button.dataset.locked !== 'true'; if (!confirm(locked ? '锁定后学生不能自行变更小组，确定吗？' : '确定重新开放学生分组吗？')) return; try { await groupRequest(`/courses/${button.dataset.courseId}/group-lock`, 'POST', {locked}); location.reload(); } catch (e) { alert(e.message); } }));
-document.querySelectorAll('.create-group').forEach((button) => button.addEventListener('click', async () => { const name = prompt('小组显示名称'); if (!name) return; try { await groupRequest(`/courses/${button.dataset.courseId}/groups`, 'POST', {name}); location.reload(); } catch (e) { alert(e.message); } }));
-document.querySelectorAll('.student-group').forEach((select) => select.addEventListener('change', async () => { try { await groupRequest(`/students/${select.dataset.studentId}/group`, 'POST', {group_id: select.value ? Number(select.value) : null}); location.reload(); } catch (e) { alert(e.message); location.reload(); } }));
-</script>{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('.reset-token').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const name = button.dataset.studentName;
+    if (!confirm(`确定重置 ${name} 的提交令牌吗？旧令牌将立即失效。`)) return;
+    button.disabled = true;
+    try {
+      const response = await fetch(`/students/${button.dataset.studentId}/reset-token`, {method: 'POST'});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail?.message || '重置失败');
+      alert(`请仅通过私密渠道发送给 ${name}。新提交令牌：\n\n${data.token}\n\n关闭后无法再次查看此令牌。`);
+    } catch (error) {
+      alert(error.message || '重置失败');
+    } finally {
+      button.disabled = false;
+    }
+  });
+});
+async function groupRequest(url, method, body) {
+  const response = await fetch(url, {method: method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.detail?.message || '操作失败');
+  return data;
+}
+document.querySelectorAll('.enrollment-code').forEach((button) => button.addEventListener('click', async () => {
+  const courseId = button.dataset.courseId;
+  const size = document.querySelector(`.enrollment-size[data-course-id="${courseId}"]`);
+  const result = document.querySelector(`.invite-result[data-course-id="${courseId}"]`);
+  const max = Number(size.value);
+  if (!Number.isInteger(max) || max < 2 || max > 20) {
+    result.textContent = '请输入 2–20 之间的每组人数。';
+    return;
+  }
+  button.disabled = true;
+  try {
+    const data = await groupRequest(`/courses/${courseId}/enrollment-code`, 'POST', {max_group_size: max});
+    result.textContent = `新邀请码：${data.enrollment_code}（请保存后发给学生）`;
+  } catch (e) {
+    result.textContent = e.message || '生成邀请码失败。';
+  } finally {
+    button.disabled = false;
+  }
+}));
+document.querySelectorAll('.group-lock').forEach((button) => button.addEventListener('click', async () => {
+  const locked = button.dataset.locked !== 'true';
+  if (!confirm(locked ? '锁定后学生不能自行变更小组，确定吗？' : '确定重新开放学生分组吗？')) return;
+  try { await groupRequest(`/courses/${button.dataset.courseId}/group-lock`, 'POST', {locked}); location.reload(); } catch (e) { alert(e.message); }
+}));
+document.querySelectorAll('.student-group').forEach((select) => select.addEventListener('change', async () => {
+  try { await groupRequest(`/students/${select.dataset.studentId}/group`, 'POST', {group_id: select.value ? Number(select.value) : null}); location.reload(); } catch (e) { alert(e.message); location.reload(); }
+}));
+</script>
+{% endblock %}

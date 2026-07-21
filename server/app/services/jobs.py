@@ -8,4 +8,3 @@ def enqueue_individual(db: Session, assignment_id: int, attempt_id: int) -> mode
                          target_id=attempt_id, status="queued", attempts=0)
     db.add(job)
     return job
-

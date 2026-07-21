@@ -6,4 +6,3 @@ class PageAuthRequired(Exception):
 
     def __init__(self, next_url: str = "/"):
         self.next_url = next_url
-

@@ -6,4 +6,3 @@ def test_health(client):
         "environment": "development",
         "worker_enabled": False,
     }
-

@@ -27,6 +27,10 @@ class CourseEnrollment(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), unique=True)
     code_hash: Mapped[str] = mapped_column(unique=True)
+    # Teachers need to look up and redistribute the current course invite.
+    # Existing records created before this field was introduced remain null
+    # until the teacher generates a replacement code.
+    enrollment_code: Mapped[str | None] = mapped_column(nullable=True)
     groups_locked: Mapped[bool] = mapped_column(default=False)
     max_group_size: Mapped[int] = mapped_column(default=6)
 
@@ -64,6 +68,10 @@ class Assignment(Base):
     title: Mapped[str]
     description: Mapped[str] = mapped_column(default="")
     rubric_json: Mapped[list] = mapped_column(JSON)
+    # Selected per assignment.  Teachers can reuse a shared profile while
+    # keeping a separate instruction slot for the specific experiment.
+    evaluation_profile: Mapped[str] = mapped_column(default="generic_experiment")
+    evaluation_instructions: Mapped[str] = mapped_column(default="")
     opens_at: Mapped[object] = mapped_column(DateTime)
     deadline: Mapped[object] = mapped_column(DateTime)
     max_package_mb: Mapped[int] = mapped_column(default=50)
@@ -106,9 +114,15 @@ class Evaluation(Base):
     evidence_json: Mapped[list] = mapped_column(JSON)
     model: Mapped[str] = mapped_column(default="")
     prompt_version: Mapped[str] = mapped_column(default="")
+    prompt_profile: Mapped[str] = mapped_column(default="generic_experiment")
+    prompt_instructions: Mapped[str] = mapped_column(default="")
     created_at: Mapped[object] = mapped_column(DateTime, default=utcnow)
+    # An evaluation is private until a teacher explicitly releases it.  This
+    # prevents an unfinished AI draft from becoming a student's grade.
     published_at: Mapped[object | None] = mapped_column(DateTime, nullable=True)
-    published_by_teacher_id: Mapped[int | None] = mapped_column(ForeignKey("teachers.id"), nullable=True)
+    published_by_teacher_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teachers.id"), nullable=True
+    )
 
 
 class GroupEvaluation(Base):
@@ -122,9 +136,16 @@ class GroupEvaluation(Base):
     rationale: Mapped[str] = mapped_column(default="")
     contribution_json: Mapped[dict] = mapped_column(JSON)
     evidence_json: Mapped[list] = mapped_column(JSON)
+    prompt_version: Mapped[str] = mapped_column(default="")
+    prompt_profile: Mapped[str] = mapped_column(default="generic_experiment")
+    prompt_instructions: Mapped[str] = mapped_column(default="")
     created_at: Mapped[object] = mapped_column(DateTime, default=utcnow)
+    # Group feedback has its own release switch; publishing an individual's
+    # report must not accidentally release the rest of the team's feedback.
     published_at: Mapped[object | None] = mapped_column(DateTime, nullable=True)
-    published_by_teacher_id: Mapped[int | None] = mapped_column(ForeignKey("teachers.id"), nullable=True)
+    published_by_teacher_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teachers.id"), nullable=True
+    )
 
 
 class GradeOverride(Base):
@@ -150,4 +171,3 @@ class EvalJob(Base):
     last_error: Mapped[str | None] = mapped_column(nullable=True)
     created_at: Mapped[object] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[object] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
-

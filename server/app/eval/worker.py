@@ -171,4 +171,3 @@ async def worker_loop(app):
             await asyncio.sleep(2)
     finally:
         provider.close()
-

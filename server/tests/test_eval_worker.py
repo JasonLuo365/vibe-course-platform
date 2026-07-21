@@ -123,7 +123,7 @@ class TestRunWorkerOnce:
         assert job.status == "done"
         assert ev.grade == "B"
         assert ev.model == settings.llm_model
-        assert ev.prompt_version == "v1"
+        assert ev.prompt_version == "v3"
         assert db.query(models.GroupEvaluation).count() == 0
         db.close()
 
@@ -191,4 +191,3 @@ class TestRunWorkerOnce:
         assert sub.status == "failed"
         assert "boom" in (job.last_error or "")
         db.close()
-

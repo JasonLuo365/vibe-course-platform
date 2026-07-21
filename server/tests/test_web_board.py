@@ -87,6 +87,44 @@ class TestLoginPage:
 
 
 class TestBoardPage:
+    def test_teacher_can_create_assignment_with_prompt_in_web_form(self, client):
+        _login(client)
+        cid = client.post("/courses", json={"name": "C", "term": ""}).json()["id"]
+        page = client.get("/assignments/new")
+        assert page.status_code == 200
+        assert "evaluation_instructions" in page.text
+        assert "team_vibe_coding" in page.text
+        assert '<select id="evaluation_profile"' in page.text
+        created = client.post("/assignments/new", data={
+            "course_name": "C", "course_term": "", "title": "网页创建", "description": "d",
+            "opens_at": "2026-07-20T08:00", "deadline": "2026-07-21T23:59", "max_package_mb": "50",
+            "evaluation_profile": "team_vibe_coding", "evaluation_instructions": "成品优先评分。",
+            "rubric_name": ["成果"], "rubric_weight": ["100"], "rubric_description": ["可运行"],
+        }, follow_redirects=False)
+        assert created.status_code == 302
+        db = SessionLocal()
+        assignment = db.query(models.Assignment).one()
+        assert assignment.code and assignment.evaluation_profile == "team_vibe_coding"
+        assert assignment.course_id == cid
+        assert assignment.evaluation_instructions == "成品优先评分。"
+        db.close()
+
+    def test_teacher_can_edit_assignment_evaluation_prompt(self, client):
+        _setup_course_and_assignment(client)
+        db = SessionLocal()
+        assignment = db.query(models.Assignment).one()
+        db.close()
+        page = client.get(f"/assignments/{assignment.id}/evaluation-config")
+        assert page.status_code == 200
+        assert "evaluation_instructions" in page.text
+        saved = client.post(f"/assignments/{assignment.id}/evaluation-config", data={"evaluation_profile": "teacher-01-lab", "evaluation_instructions": "只评价本实验的关键现象与分析。"}, follow_redirects=False)
+        assert saved.status_code == 302
+        db = SessionLocal()
+        assignment = db.get(models.Assignment, assignment.id)
+        assert assignment.evaluation_profile == "teacher-01-lab"
+        assert "关键现象" in assignment.evaluation_instructions
+        db.close()
+
     def test_board_redirects_when_unauthenticated(self, client):
         r = client.get("/assignments/1/board", follow_redirects=False)
         assert r.status_code == 302
@@ -259,4 +297,3 @@ class TestDashboard:
         assert "Vibe" in r.text
         assert "总览与评审" in r.text
         assert "/assignments/" in r.text and "/board" in r.text
-

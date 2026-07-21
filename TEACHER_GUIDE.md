@@ -1,21 +1,18 @@
-# Vibe Coding 作业提交：教师操作与班级配置指南
+# Vibe Coding 作业提交：教师操作手册
 
-生产地址：`https://vibe.planlabopc.com`。教师使用网页账户；学生不需要教师账户，也不应共享教师密码。
+生产地址：`https://vibe.planlabopc.com`。教师用自己的账号登录网页；学生不用网页登录，也不共享教师密码。
 
-## 角色与分配规则
+## 一、准备名单与分组
 
-| 对象 | 需要的数据 | 谁创建/发放 | 注意事项 |
-| --- | --- | --- |
-| 学生 | 学号、姓名、小组、个人 `submit_token` | 导入名单后系统生成令牌；教师私发 | 每人一个令牌；数据库只保存哈希，明文只能在导入/重置时看到一次。 |
-| 小组 | 课程内相同的小组名称 | CSV 导入自动生成 | 一名学生只属于一个课程内小组；可留空，系统归为“未分组”。 |
-| 教师 | 用户名、显示名、初始密码 | VPS 管理员创建 | 当前教师账号可查看系统全部课程；只给真正需要阅卷的教师创建账号。 |
-| 作业 | 标题、作业代码、开放/截止时间、量规、大小限制 | 教师创建 | 作业代码给全班相同；令牌绝不共享。 |
+### 推荐：学生自助登记与固定分组
 
-建议的顺序：**创建教师账号 → 创建课程 → 导入名单与分组 → 安全保存并私发令牌 → 创建作业 → 生成安装脚本 → 用测试学生完整验收**。
+在“学生管理”页为课程生成邀请码并设置每组人数上限。学生首次安装插件时填写邀请码、学号和姓名，系统会自动创建名单记录和提交凭证，不需要逐一导入或私发令牌。
 
-## 一、准备学生名单
+学生可在 Codex 中创建显示组名（系统给出 6 位组队码）或凭组队码加入。确认名单无误后，在“学生管理”页锁定分组；锁定后学生不能自行变动，教师可在首次提交前通过小组下拉框纠正成员。
 
-使用 UTF-8 CSV。模板见 [`docs/roster-template.csv`](docs/roster-template.csv)：
+### 兼容方式：CSV 导入
+
+准备 UTF-8 CSV 文件，第一行固定为：
 
 ```csv
 学号,姓名,小组
@@ -24,79 +21,37 @@
 20260003,王五,第2组
 ```
 
-- 学号在同一课程内必须唯一；不要用 Excel 自动转换科学计数法后的学号。
-- 相同“小组”文字自动归为同组；不分组时保留空白列。
-- 先从教务系统导出名单，人工核对学号、姓名和分组，再导入。
+- `小组` 可留空；系统会将相同的小组名自动归为同一组。
+- 每名学生必须有唯一学号。
+- 导入后系统生成一人一个 `submit_token`，数据库只保存令牌哈希，**不会再次显示原令牌**。请把导出的令牌表保存到受保护的位置，并逐一私密发放。
 
-## 二、创建教师、课程与学生令牌
-
-SSH 到 VPS，进入项目目录：
+目前名单导入与课程/作业创建使用服务器命令行。先 SSH 到 VPS，进入项目目录：
 
 ```bash
 cd ~/vibe-course-platform
-```
-
-创建教师账号（每名教师单独执行一次；密码不要出现在命令历史或截图中）：
-
-```bash
-read -s -p '教师初始密码: ' teacher_password; echo
-sudo docker compose exec -e VIBE_TEACHER_PASSWORD="$teacher_password" server vibe-server create-teacher teacher02 "助教姓名"
-unset teacher_password
-```
-
-创建课程并记下输出的课程 ID：
-
-```bash
 sudo docker compose exec server vibe-server create-course "课程名称" --term "2026 秋季"
-```
-
-将 `roster.csv` 上传到 VPS 后导入（把 `1` 换成课程 ID）：
-
-```bash
 sudo docker compose exec -T server vibe-server import-roster 1 < roster.csv > tokens.csv
 chmod 600 tokens.csv
 ```
 
-`tokens.csv` 包含 `学号,姓名,submit_token`。它是敏感文件：仅由课程负责人保存，并通过私信、学校账号或一对一邮件逐人发放。不要放在群聊、共享网盘链接、GitHub 或截图中。
-
-如果个别学生遗失/泄露令牌，在网页 **学生管理 → 重置** 中生成新令牌；旧令牌会立即失效。
-
-## 三、创建作业
-
-准备 `assignment.json`（时间使用带时区的 ISO 格式）：
-
-```json
-{
-  "title": "响应式网页设计",
-  "description": "请完成指定页面并提交源代码、会话与截图。",
-  "rubric": [
-    {"name": "需求理解", "weight": 30, "description": "功能与任务匹配"},
-    {"name": "实现质量", "weight": 40, "description": "代码结构、可运行性与界面"},
-    {"name": "迭代能力", "weight": 30, "description": "根据反馈完善作品"}
-  ],
-  "opens_at": "2026-09-01T08:00:00+08:00",
-  "deadline": "2026-09-07T23:59:00+08:00",
-  "max_package_mb": 50
-}
-```
-
-创建命令：
+将上面的 `1` 替换成实际课程 ID。接着按项目中的 CLI 帮助创建作业：
 
 ```bash
-sudo docker compose exec -T server vibe-server create-assignment 1 --input assignment.json
+sudo docker compose exec server vibe-server --help
+sudo docker compose exec server vibe-server create-assignment --help
 ```
 
-记录输出的 `code`；它是全班共用的作业代码。不要在作业开放前发给学生。
+作业必须设置开放时间、截止时间、评分量规和包大小上限。使用“学生自助登记”时，把作业代码、学生安装脚本和**课程邀请码**发送给学生即可；只有使用 CSV 导入时，才需要逐一私密发送令牌。
 
-## 四、生成并发放学生安装材料
+## 二、生成并发放学生安装脚本
 
-在你的 Windows 项目根目录生成公共安装脚本（不含学生令牌）：
+在教师自己的 Windows 项目目录中执行：
 
 ```powershell
 .\ops\render-bootstrap.ps1 `
   -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
   -ServerUrl 'https://vibe.planlabopc.com' `
-  -Version '0.1.4' `
+  -Version '0.1.3' `
   -OutputPath '.\release\bootstrap.ps1'
 ```
 
@@ -106,35 +61,64 @@ sudo docker compose exec -T server vibe-server create-assignment 1 --input assig
 .\ops\render-bootstrap.ps1 `
   -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
   -ServerUrl 'https://vibe.planlabopc.com' `
-  -Version '0.1.4' `
+  -Version '0.1.3' `
   -OutputPath '.\release\bootstrap.sh' `
   -Platform macOS
 ```
 
-全班公开发送：`STUDENT_GUIDE.md`、作业要求和作业代码；向 Windows 学生发 `release/bootstrap.ps1`，向 macOS 学生发 `release/bootstrap.sh`。逐人私发：学号确认信息与对应 `submit_token`。
+把 `release/bootstrap.ps1`（Windows）或 `release/bootstrap.sh`（macOS）、`STUDENT_GUIDE.md` 和课程邀请码发给对应学生。脚本不应包含任何学生令牌。
 
-## 五、教师网页使用
+## 三、评估报告：审核、发布与通知
 
-- **课程看板**：从“进入总览”查看每个学生的提交、队列与评估状态；“更多操作”可进入展示或下载反馈表。
-- **学生管理**：检查名单、小组和状态，必要时重置单名学生令牌。
-- **数据分析**：查看提交状态和 AI 等级分布；它仅用于教学汇总。
-- **作业详情**：查看安全过滤后的会话、代码树、截图、AI 原评与教师调分。确认后点击“发布给学生”，学生才能查看个人报告。最终成绩应由教师审核决定。
-- **小组报告**：在作业总览的对应小组点击“发布小组报告”。个人报告与小组报告独立发布；小组报告不会泄露其他成员的个人反馈。
-- **反馈 Excel**：含“个人反馈”和“小组反馈”两页，便于阅卷、归档和后续导入成绩系统。
+学生报告以课程服务器中的已发布版本为准，学生通过 Codex 插件或 `vibe-submit report` 查看；**不要把报告自动写入学生作业文件夹**。这样可以避免个人成绩与评语被下一次作业提交、同步或共享时误传，也能确保教师调分后学生看到的是最新版本。
 
-### 评估报告发布流程
+每次作业建议按以下顺序操作：
 
-1. 等待状态显示为“已评”，进入学生的作业详情检查 AI 原评、维度与反馈；需要时先保存教师调分和备注。
-2. 确认个人结果后，点击 **发布给学生**。该学生才能在 Codex 主动查询自己的个人报告。
-3. 确认团队结果后，在作业总览相应小组点击 **发布小组报告**。这只向该小组当前成员开放团队共同结论，不会发布成员个人评价。
-4. 个人发布与小组发布互不影响；学生没有教师账户，也不会收到服务器主动发送的聊天消息。学生主动说“查看我的评估反馈”时，插件才读取已发布数据。
+1. 等待 AI 评估完成，在“作业详情”查看评分维度、综合理由和改进建议。
+2. 必要时使用“教师调分”填写最终等级与教师备注；学生报告会明确标示是 AI 辅助评分还是教师调整后的结果。
+3. 确认无误后，点击该学生记录中的“发布给学生”。发布后该学生才能查看自己的个人报告。
+4. 小组评价须在作业总览中单独“发布小组报告”；它不会因发布个人报告而自动公开，反之亦然。
+5. 在课程群或 LMS 统一通知“报告已发布”，请学生在 Codex 中说“查看我的评估反馈”。系统不向学生透露未发布的草稿分数。
 
-若学生重交，系统会切换到新的提交版本；旧提交对应的发布结果不会替代新版本报告。请重新审核并发布新评估。
+个人报告包括最终等级、评分维度、综合说明、可执行的改进建议，以及（如有）教师备注。小组报告仅包含本组共同的等级、总结和教师备注，不含其他成员的个人评价或贡献判断。
 
-## 六、开课前与异常处理
+## 四、网页端日常操作
 
-1. 先用一个测试学生完成“安装/升级到 v0.1.4 → 预览 → 上传 → 评估 → 教师发布个人和小组报告 → 学生在新 Codex 窗口查询 → Excel 导出”全链路。
-2. 开课前访问 `https://vibe.planlabopc.com/health`，应返回 `status: ok` 且 `worker_enabled: true`。
-3. 每次更新前先备份：`cd ~/vibe-course-platform && chmod +x ops/backup.sh && ./ops/backup.sh`。
-4. 若 API Key、教师密码或令牌泄露：立即在对应服务更换密钥/密码，并重置受影响学生令牌。
-5. 按学校隐私要求告知学生收集范围，限定只有授权教师可访问提交记录和导出表。
+- **课程看板**：进入某门作业，查看分组与每名学生的提交/评估进度。
+- **作业详情**：查看 AI 原评、教师调分、会话记录、代码树和截图。确认结果后点击“发布给学生”，学生才能在插件中查看个人报告；如有教师调分，发布的是调整后的最终等级。作业总览中的每个小组也可单独“发布小组报告”。两种发布互不影响。会话记录按 Codex 会话分组，只显示有效的学生提示词和对应最终回答。
+- **学生管理**：查看名单、小组与提交状态；可生成课程邀请码、锁定分组、教师创建小组和调整成员。点击“重置”会生成一次性可见的新令牌；复制后通过私密渠道给学生。旧令牌立即失效。
+- **数据分析**：查看课程范围内的提交状态和 AI 等级分布。它是教学汇总，不应用作唯一的评分依据。
+
+## 五、发布前与课堂中检查
+
+1. 用一个测试学生在干净 Windows 账户按学生指南安装一次。
+2. 完整测试“预览内容 → 确认提交 → AI 评估 → 教师审核/调分 → 发布 → 学生插件查看反馈”。
+3. 在作业开放前检查：`https://vibe.planlabopc.com/health` 返回 `status: ok` 且 `worker_enabled: true`。
+4. 令牌、API Key、教师密码绝不写入 Git 仓库、聊天记录或 CSV 截图。
+5. AI 评估异常时，教师可以在详情页保留 AI 原评并用“教师调分”给出最终等级和备注。
+
+## 六、更新、备份与恢复
+
+每次更新前在 VPS 执行备份：
+
+```bash
+cd ~/vibe-course-platform
+chmod +x ops/backup.sh
+./ops/backup.sh
+```
+
+更新私有平台仓库并重建服务：
+
+```bash
+cd ~/vibe-course-platform
+GIT_SSH_COMMAND='ssh -i ~/.ssh/vibe_course_platform -o IdentitiesOnly=yes' git pull --ff-only
+sudo docker compose up -d --build
+sudo docker compose ps
+curl -fsS https://vibe.planlabopc.com/health
+```
+
+备份文件位于 `~/vibe-course-platform/backups/`；复制一份到另一个受保护的位置。若 API Key 或任一令牌泄露，应立即在对应服务中撤销/更换，然后在“学生管理”重置受影响学生的令牌。
+
+## 七、交付前责任边界
+
+系统已覆盖提交、队列、评估写回、教师展示、名单分组、令牌重置与基础统计。仍需由课程负责人执行最终人工验收：确认评分量规合理、抽查 AI 评估、妥善保管学生信息和备份，并依据学校要求处理隐私告知与成绩复核。

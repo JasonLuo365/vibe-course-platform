@@ -10,9 +10,9 @@
     <p class="meta">作业码：<code>{{ assignment.code }}</code>　截止时间：{{ assignment.deadline.isoformat() }}</p>
   </div>
   <div class="view-actions">
+    <a class="button button-secondary" href="/assignments/{{ assignment.id }}/evaluation-config">评估提示词</a>
     <a class="button button-secondary" href="/assignments/{{ assignment.id }}/present">作品展示</a>
     <a class="button button-secondary" href="/assignments/{{ assignment.id }}/review-present">评价展示</a>
-    <a class="button" href="/assignments/{{ assignment.id }}/export.xlsx">导出反馈表（Excel）</a>
   </div>
 </div>
 

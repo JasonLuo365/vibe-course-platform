@@ -21,12 +21,12 @@
 </section>
 
 <div class="tabs" role="tablist">
-  <button class="tab-button active" data-tab="eval">评估</button><button class="tab-button" data-tab="timeline">会话记录</button><button class="tab-button" data-tab="code">代码</button><button class="tab-button" data-tab="screenshots">截图</button>
+  <button class="tab-button active" data-tab="eval">评估</button><button class="tab-button" data-tab="timeline">会话记录</button><button class="tab-button" data-tab="code">代码</button><button class="tab-button" data-tab="report">报告</button><button class="tab-button" data-tab="screenshots">截图</button>
 </div>
 
 <section class="tab-panel active" id="eval">
   {% if evaluation %}
-  <div class="review-grid"><div class="card grade-card"><p>AI 评估等级</p><strong class="grade">{{ evaluation.grade }}</strong><p>{% if evaluation.published_at %}已发布给学生{% else %}仅教师可见，尚未发布{% endif %}</p>{% if not evaluation.published_at %}<form method="post" action="/evaluations/{{ evaluation.id }}/publish"><button type="submit" class="button">发布给学生</button></form>{% endif %}</div><div class="card"><h2>综合理由</h2><p>{{ evaluation.rationale }}</p></div></div>
+  <div class="review-grid"><div class="card grade-card"><p>AI 评估等级</p><strong class="grade">{{ evaluation.grade }}</strong><p>{% if evaluation.published_at %}已于 {{ evaluation.published_at }} 发布给学生{% else %}仅教师可见，尚未发布{% endif %}</p>{% if not evaluation.published_at %}<form method="post" action="/evaluations/{{ evaluation.id }}/publish"><button type="submit" class="button">发布给学生</button></form>{% endif %}</div><div class="card"><h2>综合理由</h2><p>{{ evaluation.rationale }}</p></div></div>
   <div class="card"><h2>维度得分</h2><ul class="dimensions">{% for d in evaluation.dimension_scores_json %}<li><strong>{{ d.name }}</strong> <span>{{ d.score }} 分 · 权重 {{ d.weight }}%</span><p class="rationale">{{ d.rationale }}</p></li>{% endfor %}</ul></div>
   <div class="card"><h2>反馈建议</h2><ul>{% for fb in evaluation.feedback_json %}<li>{{ fb }}</li>{% endfor %}</ul></div>
   <div class="card"><h2>教师调分</h2><form method="post" action="/evaluations/{{ evaluation.id }}/override"><label for="final_grade">最终等级</label><select id="final_grade" name="final_grade" required>{% for grade in ['A','B','C','D','E'] %}<option value="{{ grade }}" {% if final_grade == grade %}selected{% endif %}>{{ grade }}</option>{% endfor %}</select><label for="comment">调分备注</label><input type="text" id="comment" name="comment" placeholder="说明调整原因"><button type="submit" class="button">保存调分</button></form></div>
@@ -52,6 +52,13 @@
   <div class="code-workspace">
     <aside class="code-explorer"><div class="explorer-title">资源管理器 <span>{{ code_files|length }}</span></div><div class="tree-root">{{ render_tree(code_tree, submission.id, selected_code.path if selected_code else '') }}</div></aside>
     <article class="code-preview">{% if selected_code %}<div class="code-preview-header"><span>{{ selected_code.path }}</span><span>{{ selected_code.total_bytes }} bytes</span></div>{% if selected_code.truncated %}<p class="truncation-note">文件过大，仅显示前 100KB。</p>{% endif %}<pre><code>{{ selected_code.content }}</code></pre>{% else %}<div class="empty-state">没有可展示的代码文件。</div>{% endif %}</article>
+  </div>
+</section>
+
+<section class="tab-panel" id="report">
+  <div class="code-workspace">
+    <aside class="code-explorer"><div class="explorer-title">最终报告 <span>{{ report_files|length }}</span></div><div class="tree-root">{% for path in report_files %}<a class="tree-file {% if selected_report and path == selected_report.path %}selected{% endif %}" href="/submissions/{{ submission.id }}?report={{ path|urlencode }}#report"><span>⌑</span>{{ path }}</a>{% else %}<p class="empty-state">学生未提交 report 文件夹。</p>{% endfor %}</div></aside>
+    <article class="code-preview">{% if selected_report %}<div class="code-preview-header"><span>{{ selected_report.path }}</span><span>{{ selected_report.total_bytes }} bytes</span></div>{% if selected_report.previewable %}{% if selected_report.truncated %}<p class="truncation-note">文件过大，仅显示前 100KB。</p>{% endif %}<pre><code>{{ selected_report.content }}</code></pre>{% else %}<div class="empty-state report-file-note">该报告文件已随作业提交。请使用 Markdown、TXT、CSV 或 HTML 以便在此页面预览。</div>{% endif %}{% else %}<div class="empty-state">没有可展示的最终报告。</div>{% endif %}</article>
   </div>
 </section>
 

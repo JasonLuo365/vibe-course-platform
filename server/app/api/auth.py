@@ -39,4 +39,3 @@ def whoami(t: models.Teacher = Depends(get_teacher)):
 @router.get("/api/student/ping")
 def student_ping(s: models.Student = Depends(get_student)):
     return {"student_no": s.student_no, "name": s.name}
-

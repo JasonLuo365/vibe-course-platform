@@ -20,9 +20,29 @@ def init_engine(url: str):
 def create_all():
     from . import models  # noqa: F401  确保模型已注册
     Base.metadata.create_all(_engine)
+    # The MVP deliberately has no migration dependency.  Keep additions to
+    # the report-release state compatible with already-created SQLite files.
     additive_columns = {
-        "evaluations": {"published_at": "DATETIME", "published_by_teacher_id": "INTEGER"},
-        "group_evaluations": {"published_at": "DATETIME", "published_by_teacher_id": "INTEGER"},
+        "evaluations": {
+            "published_at": "DATETIME",
+            "published_by_teacher_id": "INTEGER",
+            "prompt_profile": "VARCHAR",
+            "prompt_instructions": "VARCHAR",
+        },
+        "group_evaluations": {
+            "published_at": "DATETIME",
+            "published_by_teacher_id": "INTEGER",
+            "prompt_version": "VARCHAR",
+            "prompt_profile": "VARCHAR",
+            "prompt_instructions": "VARCHAR",
+        },
+        "assignments": {
+            "evaluation_profile": "VARCHAR",
+            "evaluation_instructions": "VARCHAR",
+        },
+        "course_enrollments": {
+            "enrollment_code": "VARCHAR",
+        },
     }
     with _engine.begin() as conn:
         inspector = inspect(_engine)
@@ -39,4 +59,3 @@ def get_db():
         yield db
     finally:
         db.close()
-

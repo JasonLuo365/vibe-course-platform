@@ -40,4 +40,3 @@ def test_create_all_and_insert(client):
     assert db.query(models.Student).one().student_no == "2024001"
     assert db.query(models.EvalJob).one().status == "queued"
     db.close()
-

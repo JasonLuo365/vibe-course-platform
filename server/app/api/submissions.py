@@ -162,4 +162,3 @@ def submission_status(assignment_code: str,
     return {"submission_id": sub.id, "assignment_code": assignment_code,
             "status": sub.status, "submitted_at": att.submitted_at.isoformat(),
             "size_bytes": att.size_bytes, "error": sub.error}
-

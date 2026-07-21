@@ -20,6 +20,7 @@ from .pages import get_teacher_page
 
 router = APIRouter()
 _SAFE_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+_TEXT_REPORT_SUFFIXES = {".md", ".txt", ".rst", ".csv", ".json", ".html", ".htm"}
 
 
 def _extract_dir_for_attempt(attempt: models.SubmissionAttempt, settings: Settings) -> str:
@@ -65,8 +66,10 @@ def _is_displayable_prompt(text: str) -> bool:
         return False
     lowered = cleaned.lower()
     if any(marker in lowered for marker in (
-        "<recommended_plugins>", "<permissions instructions>",
-        "<environment_context>", "<developer",
+        "<recommended_plugins>",
+        "<permissions instructions>",
+        "<environment_context>",
+        "<developer",
         "the following is the codex agent history whose request action you are assessing",
         "the following is the codex agent history added since your last approval assessment",
         "continue the same review based on the latest transcript",
@@ -117,11 +120,11 @@ def _code_tree(code_files: list[str]) -> dict:
     return root
 
 
-def _read_code_file(extract_dir: str, path: str) -> dict:
-    code_root = pathlib.Path(os.path.realpath(os.path.join(extract_dir, "code")))
-    requested = pathlib.Path(os.path.realpath(os.path.join(code_root, path)))
+def _read_submission_file(extract_dir: str, section: str, path: str) -> dict:
+    section_root = pathlib.Path(os.path.realpath(os.path.join(extract_dir, section)))
+    requested = pathlib.Path(os.path.realpath(os.path.join(section_root, path)))
     try:
-        requested.relative_to(code_root)
+        requested.relative_to(section_root)
     except ValueError:
         raise ApiError(404, "NOT_FOUND", "file not found")
     if not requested.exists() or not requested.is_file():
@@ -136,7 +139,16 @@ def _read_code_file(extract_dir: str, path: str) -> dict:
         "content": raw[:max_bytes].decode("utf-8", errors="replace"),
         "truncated": len(raw) > max_bytes,
         "total_bytes": len(raw),
+        "previewable": section == "code" or requested.suffix.lower() in _TEXT_REPORT_SUFFIXES,
     }
+
+
+def _read_code_file(extract_dir: str, path: str) -> dict:
+    return _read_submission_file(extract_dir, "code", path)
+
+
+def _read_report_file(extract_dir: str, path: str) -> dict:
+    return _read_submission_file(extract_dir, "report", path)
 
 
 @router.get("/media/extracted/{path:path}")
@@ -167,6 +179,7 @@ def submission_detail(
     request: Request,
     sid: int,
     file: str | None = Query(default=None),
+    report: str | None = Query(default=None),
     db: Session = Depends(get_db),
     t: models.Teacher = Depends(get_teacher_page),
 ):
@@ -188,6 +201,7 @@ def submission_detail(
     timelines = []
     metrics = {}
     code_files: list[str] = []
+    report_files: list[str] = []
     screenshots = []
     if attempt is not None:
         extract_dir = _extract_dir_for_attempt(attempt, settings)
@@ -207,11 +221,17 @@ def submission_detail(
                         screenshots.append(rel)
                     elif rel.startswith("code/"):
                         code_files.append(rel[5:])
+                    elif rel.startswith("report/"):
+                        report_files.append(rel[7:])
 
     code_files.sort()
+    report_files.sort()
     selected_code = None
     if attempt is not None and code_files:
         selected_code = _read_code_file(extract_dir, file or code_files[0])
+    selected_report = None
+    if attempt is not None and report_files:
+        selected_report = _read_report_file(extract_dir, report or report_files[0])
 
     target_type = "individual"
     target_id = f"{submission.assignment_id}:{submission.student_id}"
@@ -239,6 +259,8 @@ def submission_detail(
             "code_files": code_files,
             "code_tree": _code_tree(code_files),
             "selected_code": selected_code,
+            "report_files": report_files,
+            "selected_report": selected_report,
             "screenshots": screenshots,
             "media_prefix": f"/media/extracted/{attempt.id}" if attempt else "",
         },
@@ -351,7 +373,12 @@ def evaluation_override(
 
 
 @router.post("/evaluations/{eid}/publish")
-def publish_evaluation(eid: int, db: Session = Depends(get_db), t: models.Teacher = Depends(get_teacher_page)):
+def publish_evaluation(
+    eid: int,
+    db: Session = Depends(get_db),
+    t: models.Teacher = Depends(get_teacher_page),
+):
+    """Release the current attempt's report to its owning student."""
     evaluation = db.get(models.Evaluation, eid)
     if evaluation is None:
         raise ApiError(404, "NOT_FOUND", "评估不存在")
@@ -368,13 +395,21 @@ def publish_evaluation(eid: int, db: Session = Depends(get_db), t: models.Teache
 
 
 @router.post("/group-evaluations/{gid}/publish")
-def publish_group_evaluation(gid: int, db: Session = Depends(get_db), t: models.Teacher = Depends(get_teacher_page)):
+def publish_group_evaluation(
+    gid: int,
+    db: Session = Depends(get_db),
+    t: models.Teacher = Depends(get_teacher_page),
+):
+    """Release the latest group report only to current members of that group."""
     evaluation = db.get(models.GroupEvaluation, gid)
     if evaluation is None:
         raise ApiError(404, "NOT_FOUND", "小组评估不存在")
-    latest = (db.query(models.GroupEvaluation)
-              .filter_by(assignment_id=evaluation.assignment_id, group_id=evaluation.group_id)
-              .order_by(models.GroupEvaluation.generation.desc(), models.GroupEvaluation.created_at.desc()).first())
+    latest = (
+        db.query(models.GroupEvaluation)
+        .filter_by(assignment_id=evaluation.assignment_id, group_id=evaluation.group_id)
+        .order_by(models.GroupEvaluation.generation.desc(), models.GroupEvaluation.created_at.desc())
+        .first()
+    )
     if latest is None or latest.id != evaluation.id:
         raise ApiError(409, "STALE_EVALUATION", "不能发布已被新版小组评估替代的旧结果")
     evaluation.published_at = utcnow()

@@ -23,4 +23,3 @@ def test_login_logout_and_protected(client):
     assert r.status_code == 200 and r.json()["username"] == "admin"
     client.post("/logout")
     assert client.get("/api/whoami").status_code == 401
-

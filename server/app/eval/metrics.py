@@ -99,4 +99,3 @@ def compute_metrics(timelines: list[RolloutTimeline]) -> dict:
         "error_fix_cycles": error_fix_cycles,
         "files_touched": len(files_touched),
     }
-

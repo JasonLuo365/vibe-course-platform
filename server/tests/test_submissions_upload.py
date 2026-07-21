@@ -28,7 +28,11 @@ def _setup(client, code=None):
 
 
 def _package(code, client_version="0.1.0", fmt="1", student_no="1"):
-    files = {"sessions/a.jsonl": b"hello", "code/main.py": b"print(1)"}
+    files = {
+        "sessions/a.jsonl": b"hello",
+        "code/main.py": b"print(1)",
+        "report/final-report.md": b"# Final report\nCompleted work summary.",
+    }
     manifest = {
         "format_version": fmt, "assignment_code": code, "student_no": student_no,
         "client_version": client_version, "submitted_at": "2026-07-19T08:00:00Z",
@@ -205,4 +209,3 @@ def test_upload_bad_manifest(client):
                     files={"file": ("p.zip", b"", "application/zip")})
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "BAD_MANIFEST"
-
