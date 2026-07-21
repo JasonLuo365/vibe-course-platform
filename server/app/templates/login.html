@@ -1,34 +1,86 @@
 {% extends "base.html" %}
 
-{% block title %}教师登录 - Vibe{% endblock %}
+{% block title %}登录 - Vibe{% endblock %}
 
 {% block content %}
-<div class="login-card">
-  <h1>教师登录</h1>
-  <form id="login-form">
-    <input type="hidden" id="next-url" value="{{ next_url }}">
-    <label for="username">用户名</label>
-    <input type="text" id="username" name="username" required autofocus>
+<div class="login-card login-card-wide">
+  <p class="eyebrow">VIBE COURSE PLATFORM</p>
+  <h1>欢迎回来</h1>
+  <p class="login-intro">请选择你的登录身份</p>
 
-    <label for="password">密码</label>
-    <input type="password" id="password" name="password" required>
+  <div class="login-role-switch" role="tablist" aria-label="登录身份">
+    <button class="login-role-button active" type="button" role="tab" aria-selected="true"
+            aria-controls="teacher-login-panel" data-login-role="teacher">教师登录</button>
+    <button class="login-role-button" type="button" role="tab" aria-selected="false"
+            aria-controls="student-login-panel" data-login-role="student">学生登录</button>
+  </div>
 
-    <button type="submit">登录</button>
-  </form>
-  <p id="login-error" class="error"></p>
+  <section id="teacher-login-panel" class="login-panel active" role="tabpanel">
+    <h2>教师登录</h2>
+    <form id="login-form">
+      <input type="hidden" id="next-url" value="{{ next_url }}">
+      <label for="username">用户名</label>
+      <input type="text" id="username" name="username" required autofocus>
+
+      <label for="password">密码</label>
+      <input type="password" id="password" name="password" required>
+
+      <button class="button login-submit" type="submit">教师登录</button>
+    </form>
+    <p id="login-error" class="error" role="alert"></p>
+  </section>
+
+  <section id="student-login-panel" class="login-panel" role="tabpanel" hidden>
+    <h2>学生登录</h2>
+    <p class="login-help">使用教师私下发放的学号和 submit_token 登录。请勿将 Token 分享给他人或提交到 Git。</p>
+    <form id="student-login-form" action="/student/login">
+      <label for="student-no">学号</label>
+      <input type="text" id="student-no" name="student_no" autocomplete="username" required>
+
+      <label for="submit-token">submit_token</label>
+      <input type="password" id="submit-token" name="submit_token" autocomplete="current-password" required>
+
+      <button class="button login-submit" type="submit">学生登录</button>
+    </form>
+    <p id="student-login-error" class="error" role="alert"></p>
+  </section>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function () {
-  const form = document.getElementById('login-form');
-  const errorEl = document.getElementById('login-error');
+  const roleButtons = document.querySelectorAll('[data-login-role]');
+  const panels = {
+    teacher: document.getElementById('teacher-login-panel'),
+    student: document.getElementById('student-login-panel'),
+  };
+
+  roleButtons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      const role = button.dataset.loginRole;
+      roleButtons.forEach(function (item) {
+        const active = item === button;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-selected', String(active));
+      });
+      Object.entries(panels).forEach(function ([name, panel]) {
+        const active = name === role;
+        panel.classList.toggle('active', active);
+        panel.hidden = !active;
+      });
+      const firstInput = panels[role].querySelector('input:not([type="hidden"])');
+      if (firstInput) firstInput.focus();
+    });
+  });
+
+  const teacherForm = document.getElementById('login-form');
+  const teacherError = document.getElementById('login-error');
   const nextUrl = document.getElementById('next-url').value || '/';
 
-  form.addEventListener('submit', async function (e) {
-    e.preventDefault();
-    errorEl.textContent = '';
+  teacherForm.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    teacherError.textContent = '';
     const res = await fetch('/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -41,10 +93,30 @@
       window.location.href = nextUrl;
     } else {
       const data = await res.json().catch(() => ({}));
-      errorEl.textContent = data.error?.message || '登录失败';
+      teacherError.textContent = data.error?.message || '登录失败';
+    }
+  });
+
+  const studentForm = document.getElementById('student-login-form');
+  studentForm.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    document.getElementById('student-login-error').textContent = '';
+    const res = await fetch(studentForm.action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        student_no: document.getElementById('student-no').value,
+        submit_token: document.getElementById('submit-token').value,
+      }),
+    });
+    if (res.ok) {
+      window.location.href = '/student';
+    } else {
+      const data = await res.json().catch(() => ({}));
+      document.getElementById('student-login-error').textContent =
+        data.error?.message || '登录失败，请检查学号和 submit_token';
     }
   });
 })();
 </script>
 {% endblock %}
-
