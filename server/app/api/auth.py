@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..db import get_db
-from ..deps import get_student, get_teacher
+from ..deps import get_student, get_teacher, rate_limit
 from ..errors import ApiError
-from ..security import hash_token, verify_password
+from ..security import hash_password, verify_password
 
 router = APIRouter()
 
@@ -19,7 +19,17 @@ class LoginIn(BaseModel):
 
 class StudentLoginIn(BaseModel):
     student_no: str
-    submit_token: str
+    password: str
+
+
+class StudentPasswordResetIn(BaseModel):
+    student_no: str
+    password: str
+    password_confirm: str
+
+
+def _valid_password(password: str) -> bool:
+    return 8 <= len(password) <= 128
 
 
 @router.post("/login")
@@ -39,17 +49,35 @@ def logout(request: Request):
 
 @router.post("/student/login")
 def student_login(body: StudentLoginIn, request: Request, db: Session = Depends(get_db)):
-    student = (
-        db.query(models.Student)
-        .filter_by(submit_token_hash=hash_token(body.submit_token))
-        .first()
-    )
-    if not student or student.student_no != body.student_no:
-        raise ApiError(401, "UNAUTHORIZED", "学号或 submit_token 错误")
+    students = db.query(models.Student).filter_by(student_no=body.student_no).all()
+    if len(students) != 1 or not students[0].password_hash or not verify_password(
+        body.password, students[0].password_hash
+    ):
+        raise ApiError(401, "UNAUTHORIZED", "学号或密码错误")
+    student = students[0]
     request.session.clear()
     request.session["role"] = "student"
     request.session["student_id"] = student.id
     request.session["student_session_version"] = student.web_session_version
+    return {"ok": True}
+
+
+@router.post("/student/password/reset")
+def reset_student_password(
+    body: StudentPasswordResetIn, request: Request, db: Session = Depends(get_db)
+):
+    rate_limit(request)
+    if body.password != body.password_confirm:
+        raise ApiError(422, "PASSWORD_MISMATCH", "两次输入的密码不一致")
+    if not _valid_password(body.password):
+        raise ApiError(422, "WEAK_PASSWORD", "密码长度须为 8 到 128 个字符")
+    students = db.query(models.Student).filter_by(student_no=body.student_no).all()
+    if len(students) == 1:
+        student = students[0]
+        student.password_hash = hash_password(body.password)
+        student.web_session_version += 1
+        db.commit()
+    # Keep the response identical for unknown or ambiguous student numbers.
     return {"ok": True}
 
 

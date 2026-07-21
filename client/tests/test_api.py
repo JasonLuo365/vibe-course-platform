@@ -17,7 +17,7 @@ def cfg():
     return Config(
         server_url="https://example.com",
         student_no="2026001",
-        submit_token="secret-token",
+        password="secret-password",
         source="global",
     )
 
@@ -37,7 +37,7 @@ def manifest():
 
 def test_get_meta_success(cfg):
     def handler(request: httpx.Request):
-        assert request.headers["authorization"] == "Bearer secret-token"
+        assert request.headers["authorization"] == "Basic MjAyNjAwMTpzZWNyZXQtcGFzc3dvcmQ="
         return httpx.Response(200, json={"assignment_code": "HW01", "accepts": True})
 
     result = get_meta(cfg, "HW01", transport=httpx.MockTransport(handler))
@@ -49,7 +49,7 @@ def test_upload_success(cfg, manifest, tmp_path):
     zip_path.write_bytes(b"zipdata")
 
     def handler(request: httpx.Request):
-        assert request.headers["authorization"] == "Bearer secret-token"
+        assert request.headers["authorization"] == "Basic MjAyNjAwMTpzZWNyZXQtcGFzc3dvcmQ="
         return httpx.Response(
             201,
             json={"submission_id": "sub-1", "attempt_no": 1},

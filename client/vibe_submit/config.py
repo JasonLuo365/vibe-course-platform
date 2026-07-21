@@ -18,7 +18,7 @@ class Config:
 
     server_url: str
     student_no: str
-    submit_token: str
+    password: str
     source: str
 
 
@@ -95,12 +95,12 @@ def load_config(
 
     server_url = _get_key(global_data, "server_url")
     student_no = _get_key(global_data, "student_no")
-    submit_token = _get_key(global_data, "submit_token")
+    password = _get_key(global_data, "password")
 
-    if not server_url or not student_no or not submit_token:
+    if not server_url or not student_no or not password:
         raise ConfigError(
             "global config missing one of required fields: "
-            "server_url, student_no, submit_token"
+            "server_url, student_no, password; rerun vibe-submit bootstrap"
         )
 
     server_url = validate_server_url(str(server_url))
@@ -128,7 +128,7 @@ def load_config(
     return Config(
         server_url=server_url,
         student_no=str(student_no),
-        submit_token=str(submit_token),
+        password=str(password),
         source=source,
     )
 
@@ -145,7 +145,7 @@ def write_config(path: Path, data: dict) -> None:
     lines = [
         f'server_url = {_toml_str(data.get("server_url", ""))}\n',
         f'student_no = {_toml_str(data.get("student_no", ""))}\n',
-        f'submit_token = {_toml_str(data.get("submit_token", ""))}\n',
+        f'password = {_toml_str(data.get("password", ""))}\n',
     ]
     path.write_text("".join(lines), encoding="utf-8")
 

@@ -6,7 +6,7 @@
 
 ### 推荐：学生自助登记与固定分组
 
-在“学生管理”页为课程生成邀请码并设置每组人数上限。学生首次安装插件时填写邀请码、学号和姓名，系统会自动创建名单记录和提交凭证，不需要逐一导入或私发令牌。
+在“学生管理”页为课程生成邀请码并设置每组人数上限。学生首次安装插件时填写邀请码、学号、姓名并设置密码，系统会自动创建名单记录，不需要逐一导入或私发令牌。
 
 学生可在 Codex 中创建显示组名（系统给出 6 位组队码）或凭组队码加入。确认名单无误后，在“学生管理”页锁定分组；锁定后学生不能自行变动，教师可在首次提交前通过小组下拉框纠正成员。
 
@@ -23,15 +23,14 @@
 
 - `小组` 可留空；系统会将相同的小组名自动归为同一组。
 - 每名学生必须有唯一学号。
-- 导入后系统生成一人一个 `submit_token`，数据库只保存令牌哈希，**不会再次显示原令牌**。请把导出的令牌表保存到受保护的位置，并逐一私密发放。
+- 导入后的学生在首次安装时，使用邀请码、学号和姓名设置自己的密码。
 
 目前名单导入与课程/作业创建使用服务器命令行。先 SSH 到 VPS，进入项目目录：
 
 ```bash
 cd ~/vibe-course-platform
 sudo docker compose exec server vibe-server create-course "课程名称" --term "2026 秋季"
-sudo docker compose exec -T server vibe-server import-roster 1 < roster.csv > tokens.csv
-chmod 600 tokens.csv
+sudo docker compose exec -T server vibe-server import-roster 1 < roster.csv
 ```
 
 将上面的 `1` 替换成实际课程 ID。接着按项目中的 CLI 帮助创建作业：
@@ -41,7 +40,7 @@ sudo docker compose exec server vibe-server --help
 sudo docker compose exec server vibe-server create-assignment --help
 ```
 
-作业必须设置开放时间、截止时间、评分量规和包大小上限。使用“学生自助登记”时，在课程群发布学生指南链接、作业代码和**课程邀请码**即可；只有使用 CSV 导入时，才需要逐一私密发送令牌。
+作业必须设置开放时间、截止时间、评分量规和包大小上限。无论学生自助登记还是 CSV 导入，均在课程群发布学生指南链接、作业代码和**课程邀请码**即可。
 
 ## 二、统一发布安装说明
 
@@ -65,7 +64,7 @@ sudo docker compose exec server vibe-server create-assignment --help
 
 - **课程看板**：进入某门作业，查看分组与每名学生的提交/评估进度。
 - **作业详情**：查看 AI 原评、教师调分、会话记录、代码树和截图。确认结果后点击“发布给学生”，学生才能在插件中查看个人报告；如有教师调分，发布的是调整后的最终等级。作业总览中的每个小组也可单独“发布小组报告”。两种发布互不影响。会话记录按 Codex 会话分组，只显示有效的学生提示词和对应最终回答。
-- **学生管理**：查看名单、小组与提交状态；可生成课程邀请码、锁定分组、教师创建小组和调整成员。点击“重置”会生成一次性可见的新令牌；复制后通过私密渠道给学生。旧令牌立即失效。
+- **学生管理**：查看名单、小组与提交状态；可生成课程邀请码、锁定分组、教师创建小组和调整成员。学生可在登录页自行重置密码。
 - **数据分析**：查看课程范围内的提交状态和 AI 等级分布。它是教学汇总，不应用作唯一的评分依据。
 
 ## 五、发布前与课堂中检查
@@ -73,7 +72,7 @@ sudo docker compose exec server vibe-server create-assignment --help
 1. 用一个测试学生在干净 Windows 账户按学生指南安装一次。
 2. 完整测试“预览内容 → 确认提交 → AI 评估 → 教师审核/调分 → 发布 → 学生插件查看反馈”。
 3. 在作业开放前检查：`https://vibe.planlabopc.com/health` 返回 `status: ok` 且 `worker_enabled: true`。
-4. 令牌、API Key、教师密码绝不写入 Git 仓库、聊天记录或 CSV 截图。
+4. 学生密码、API Key、教师密码绝不写入 Git 仓库、聊天记录或 CSV 截图。
 5. AI 评估异常时，教师可以在详情页保留 AI 原评并用“教师调分”给出最终等级和备注。
 
 ## 六、更新、备份与恢复
@@ -96,7 +95,7 @@ sudo docker compose ps
 curl -fsS https://vibe.planlabopc.com/health
 ```
 
-备份文件位于 `~/vibe-course-platform/backups/`；复制一份到另一个受保护的位置。若 API Key 或任一令牌泄露，应立即在对应服务中撤销/更换，然后在“学生管理”重置受影响学生的令牌。
+备份文件位于 `~/vibe-course-platform/backups/`；复制一份到另一个受保护的位置。若 API Key 泄露，应立即在对应服务中撤销/更换；学生忘记密码时可在登录页自行重置。
 
 ## 七、交付前责任边界
 

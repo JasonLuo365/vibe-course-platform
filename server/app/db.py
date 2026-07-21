@@ -63,14 +63,22 @@ def _upgrade_existing_schema():
         return
     columns = {column["name"] for column in inspector.get_columns("students")}
     if "web_session_version" in columns:
+        needs_session_version = False
+    else:
+        needs_session_version = True
+    needs_password = "password_hash" not in columns
+    if not needs_session_version and not needs_password:
         return
     with _engine.begin() as connection:
-        connection.execute(
-            text(
-                "ALTER TABLE students "
-                "ADD COLUMN web_session_version INTEGER NOT NULL DEFAULT 1"
+        if needs_session_version:
+            connection.execute(
+                text(
+                    "ALTER TABLE students "
+                    "ADD COLUMN web_session_version INTEGER NOT NULL DEFAULT 1"
+                )
             )
-        )
+        if needs_password:
+            connection.execute(text("ALTER TABLE students ADD COLUMN password_hash VARCHAR"))
 
 
 def get_db():

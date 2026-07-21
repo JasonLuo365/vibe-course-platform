@@ -32,17 +32,18 @@
 
   <section id="student-login-panel" class="login-panel" role="tabpanel" hidden>
     <h2>学生登录</h2>
-    <p class="login-help">使用教师私下发放的学号和 submit_token 登录。请勿将 Token 分享给他人或提交到 Git。</p>
+    <p class="login-help">使用学号和你在安装时设置的密码登录。</p>
     <form id="student-login-form" action="/student/login">
       <label for="student-no">学号</label>
       <input type="text" id="student-no" name="student_no" autocomplete="username" required>
 
-      <label for="submit-token">submit_token</label>
-      <input type="password" id="submit-token" name="submit_token" autocomplete="current-password" required>
+      <label for="student-password">密码</label>
+      <input type="password" id="student-password" name="password" autocomplete="current-password" required>
 
       <button class="button login-submit" type="submit">学生登录</button>
     </form>
     <p id="student-login-error" class="error" role="alert"></p>
+    <a class="text-button" href="/student/password/reset">忘记密码？</a>
   </section>
 </div>
 {% endblock %}
@@ -106,7 +107,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         student_no: document.getElementById('student-no').value,
-        submit_token: document.getElementById('submit-token').value,
+        password: document.getElementById('student-password').value,
       }),
     });
     if (res.ok) {
@@ -114,9 +115,10 @@
     } else {
       const data = await res.json().catch(() => ({}));
       document.getElementById('student-login-error').textContent =
-        data.error?.message || '登录失败，请检查学号和 submit_token';
+        data.error?.message || '登录失败，请检查学号和密码';
     }
   });
+
 })();
 </script>
 {% endblock %}

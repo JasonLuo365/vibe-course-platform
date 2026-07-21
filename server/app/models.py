@@ -1,3 +1,5 @@
+import secrets
+
 from sqlalchemy import JSON, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,7 +59,13 @@ class Student(Base):
     group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id"), nullable=True)
     student_no: Mapped[str]
     name: Mapped[str]
-    submit_token_hash: Mapped[str] = mapped_column(unique=True)
+    password_hash: Mapped[str | None] = mapped_column(nullable=True)
+    # Existing SQLite installations have a non-null, unique submit_token_hash
+    # column. Keep it as an opaque compatibility value until a later physical
+    # schema cleanup; no authentication code reads or exposes it.
+    legacy_credential_hash: Mapped[str] = mapped_column(
+        "submit_token_hash", unique=True, default=lambda: secrets.token_hex(32)
+    )
     web_session_version: Mapped[int] = mapped_column(default=1, server_default="1", nullable=False)
 
 

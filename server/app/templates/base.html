@@ -19,7 +19,7 @@
       <div class="sidebar-footer"><span class="teacher-avatar">{{ (teacher.display_name or teacher.username)[0] }}</span><span>{{ teacher.display_name or teacher.username }}<small>教师</small></span></div>
     </aside>
     <div class="app-main">
-      <header class="topbar"><div class="topbar-context">教师工作台</div><div class="topbar-actions"><span class="notification">♧</span><span>{{ teacher.display_name or teacher.username }}</span><form method="post" action="/logout"><button type="submit" class="text-button">退出登录</button></form></div></header>
+      <header class="topbar"><div class="topbar-context"><span>教师工作台</span></div><div class="topbar-actions"><span class="notification">♧</span><span>{{ teacher.display_name or teacher.username }}</span><form method="post" action="/logout"><button type="submit" class="text-button">退出登录</button></form></div></header>
       {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
       <main class="container">
   {% elif student %}

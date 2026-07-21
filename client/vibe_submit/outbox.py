@@ -109,13 +109,13 @@ def get_outbox(outbox_id: str) -> tuple[Path, dict]:
 
 
 def get_outbox_config(outbox_id: str) -> Config:
-    """Reconstruct a Config object from an outbox entry (no submit_token)."""
+    """Reconstruct a Config object from an outbox entry (without a password)."""
     path = _entry_path(outbox_id)
     meta = json.loads((path / "meta.json").read_text(encoding="utf-8"))
     return Config(
         server_url=meta.get("server_url", ""),
         student_no=meta.get("student_no", ""),
-        submit_token="",
+        password="",
         source="outbox",
     )
 
@@ -128,7 +128,7 @@ def retry_config(outbox_id: str, active_config: Config) -> Config:
     return Config(
         server_url=validate_server_url(saved.server_url or active_config.server_url),
         student_no=active_config.student_no,
-        submit_token=active_config.submit_token,
+        password=active_config.password,
         source="outbox",
     )
 

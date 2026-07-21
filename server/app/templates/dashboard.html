@@ -5,7 +5,7 @@
   <div>
     <p class="eyebrow">教师工作台</p>
     <h1>课程仪表盘</h1>
-    <p class="page-summary">统一查看课程、作业进度与课堂展示入口。</p>
+    <p class="page-summary">统一查看课程、作业进度与评估配置。</p>
   </div>
   <a class="button" href="/assignments/new">创建作业</a>
 </div>
@@ -29,15 +29,7 @@
         <td>
           <div class="dashboard-actions">
             <a class="button button-small" href="/assignments/{{ a.id }}/board">进入总览与评审</a>
-            <details class="action-menu">
-              <summary>更多操作 <span>⌄</span></summary>
-              <div class="action-menu-popover">
-                <a href="/assignments/{{ a.id }}/evaluation-config">评估提示词</a>
-                <a href="/assignments/{{ a.id }}/present">课堂作品展示</a>
-                <a href="/assignments/{{ a.id }}/review-present">评价展示</a>
-                <a href="/assignments/{{ a.id }}/export.csv">下载 CSV（兼容）</a>
-              </div>
-            </details>
+            <a class="button button-small" href="/assignments/{{ a.id }}/evaluation-config">评估提示词</a>
           </div>
         </td>
       </tr>

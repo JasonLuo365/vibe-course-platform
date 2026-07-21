@@ -3,7 +3,7 @@
 ## 使用流程
 
 1. 打开平台 `/login`，选择“学生登录”。
-2. 输入教师发放的学号和 `submit_token`。
+2. 输入学号和自己设置的密码。
 3. 登录后进入 `/student`，查看自己的课程、小组、作业和提交状态。
 4. 对已经提交的作业，点击“查看详情”，进入 `/student/submissions/{submission_id}` 查看个人评语、小组评语、成绩和提交信息。
 
@@ -25,7 +25,8 @@ uv run pytest -q
 当前学生端相关页面：
 
 - `GET /login`：教师/学生角色选择登录页
-- `POST /student/login`：学号 + `submit_token` 登录
+- `POST /student/login`：学号 + 密码登录
+- `POST /student/password/reset`：仅凭学号设置新密码
 - `GET /student`：学生作业首页
 - `GET /student/submissions/{submission_id}`：学生评语详情页
 - `POST /student/logout`：学生退出登录

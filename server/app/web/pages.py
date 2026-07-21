@@ -68,6 +68,13 @@ def login_page(request: Request, next: str = "/"):
     )
 
 
+@router.get("/student/password/reset", response_class=HTMLResponse)
+def student_password_reset_page(request: Request):
+    from ..main import templates
+
+    return templates.TemplateResponse(request, "student_password_reset.html", {"flash": ""})
+
+
 @router.get("/student", response_class=HTMLResponse)
 def student_dashboard(
     request: Request,
