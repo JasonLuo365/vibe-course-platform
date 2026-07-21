@@ -6,11 +6,12 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..api.assignments import AssignmentIn, _as_naive_utc, _new_code
 from ..db import get_db
-from ..deps import get_teacher
+from ..deps import get_student_page, get_teacher
 from ..eval.prompts import PROMPT_PROFILE_LABELS
 from ..errors import ApiError
 from . import PageAuthRequired
 from .board import board_data, progress_for_assignment
+from ..services.student_portal import dashboard_data
 
 router = APIRouter()
 
@@ -64,6 +65,22 @@ def login_page(request: Request, next: str = "/"):
         request,
         "login.html",
         {"next_url": next, "flash": ""},
+    )
+
+
+@router.get("/student", response_class=HTMLResponse)
+def student_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    student: models.Student = Depends(get_student_page),
+):
+    from ..main import templates
+
+    data = dashboard_data(db, student)
+    return templates.TemplateResponse(
+        request,
+        "student_dashboard.html",
+        {**data, "student": student},
     )
 
 

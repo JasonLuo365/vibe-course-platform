@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}学生作业中心 - Vibe{% endblock %}
+
+{% block content %}
+<div class="student-heading">
+  <div>
+    <p class="eyebrow">STUDENT PORTAL</p>
+    <h1>你好，{{ student.name }}</h1>
+    <p class="page-summary">{{ course.name if course else '暂无课程' }} · {{ group.name if group else '未分组' }}</p>
+  </div>
+  <div class="student-identity-card">
+    <span>学号</span>
+    <strong>{{ student.student_no }}</strong>
+  </div>
+</div>
+
+<section class="student-section">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">MY ASSIGNMENTS</p>
+      <h2>我的作业</h2>
+    </div>
+    <span class="muted-count">{{ rows|length }} 项作业</span>
+  </div>
+
+  <div class="student-assignment-list">
+    {% for row in rows %}
+    <article class="student-assignment-card">
+      <div class="assignment-main">
+        <span class="assignment-code">{{ row.assignment.code }}</span>
+        <h3>{{ row.assignment.title }}</h3>
+        <p>{{ row.assignment.description or '暂无作业说明' }}</p>
+      </div>
+      <div class="assignment-status">
+        {% if not row.submission %}
+        <span class="status-badge status-muted">尚未提交</span>
+        {% elif row.submission.status == 'queued' or row.submission.status == 'evaluating' %}
+        <span class="status-badge status-pending">评估中</span>
+        {% elif row.evaluation %}
+        <span class="status-badge status-success">已完成 · {{ row.evaluation.grade }}</span>
+        {% else %}
+        <span class="status-badge status-pending">等待评估</span>
+        {% endif %}
+        {% if row.submission %}
+        <a class="button button-small" href="/student/submissions/{{ row.submission.id }}">查看详情</a>
+        {% endif %}
+      </div>
+    </article>
+    {% else %}
+    <div class="empty-state card">当前课程还没有作业。</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

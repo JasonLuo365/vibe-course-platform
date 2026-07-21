@@ -9,6 +9,7 @@ from .config import Settings
 from .db import get_db
 from .errors import ApiError
 from .security import hash_token
+from .web import PageAuthRequired
 
 
 def get_teacher(request: Request, db: Session = Depends(get_db)) -> models.Teacher:
@@ -34,6 +35,18 @@ def get_student(request: Request, db: Session = Depends(get_db)) -> models.Stude
     if not s:
         raise ApiError(401, "UNAUTHORIZED", "token 无效或已重置")
     return s
+
+
+def get_student_page(request: Request, db: Session = Depends(get_db)) -> models.Student:
+    if request.session.get("role") != "student":
+        raise PageAuthRequired(next_url=str(request.url.path))
+    student_id = request.session.get("student_id")
+    student = db.get(models.Student, student_id) if student_id else None
+    session_version = request.session.get("student_session_version")
+    if not student or session_version != student.web_session_version:
+        request.session.clear()
+        raise PageAuthRequired(next_url=str(request.url.path))
+    return student
 
 
 _hits: dict[str, deque] = defaultdict(deque)
