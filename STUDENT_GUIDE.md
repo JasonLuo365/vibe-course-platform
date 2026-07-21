@@ -16,7 +16,7 @@ if (-not (Get-Command uvx -ErrorAction SilentlyContinue)) {
   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
   $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
 }
-$source = "git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.6#subdirectory=packages/vibe-submit"
+$source = "git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.7#subdirectory=packages/vibe-submit"
 uvx --from $source vibe-submit bootstrap `
   --marketplace-url "https://github.com/JasonLuo365/vibe-course-marketplace.git" `
   --marketplace-name "vibe-course" `
@@ -36,7 +36,7 @@ if ! command -v uvx >/dev/null 2>&1; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
   export PATH="$HOME/.local/bin:$PATH"
 fi
-source="git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.6#subdirectory=packages/vibe-submit"
+source="git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.7#subdirectory=packages/vibe-submit"
 uvx --from "$source" vibe-submit bootstrap \
   --marketplace-url "https://github.com/JasonLuo365/vibe-course-marketplace.git" \
   --marketplace-name "vibe-course" \
