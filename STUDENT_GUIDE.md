@@ -1,8 +1,7 @@
 # Vibe Coding 作业提交：学生使用指南
 
-本指南适用于 Windows（PowerShell）或 macOS（终端）+ Codex。教师会在课程群或课程平台统一发布：
+本指南适用于 Windows（PowerShell）或 macOS（终端）+ Codex。教师只需在课程群或课程平台统一发布：
 
-- 课程安装脚本：Windows 为 `bootstrap.ps1`，macOS 为 `bootstrap.sh`；
 - 作业代码（通常在作业开放时发布）；
 - 课程邀请码；
 
@@ -10,42 +9,51 @@
 
 ## 让 Codex 协助安装（推荐）
 
-你可以让 Codex 阅读本指南并协助完成安装，不需要理解 `uv`、Marketplace 或命令行的细节。先将老师发来的 `bootstrap.ps1`（macOS 为 `bootstrap.sh`）保存到本机，再把**脚本文件和本指南**拖入一个新的 Codex 对话，发送下面这段话：
+你可以让 Codex 阅读本指南并协助完成安装，不需要下载或接收任何脚本。新建一个 Codex 对话，发送下面这段话：
 
 ```text
-请按 STUDENT_GUIDE.md 协助我安装 Vibe 作业提交插件。安装脚本是老师发来的 bootstrap 文件；请先检查脚本中没有 TODO 占位符，再引导我运行它。注册时我会在本机终端输入学号、姓名和老师公布的课程邀请码；不要要求我在对话中提供或展示任何 submit_token。安装检查成功后，如本机有 codex 命令，请运行 `codex plugin add vibe-submit@vibe-course` 安装插件；否则指导我重启 Codex，并在 Vibe Course Marketplace 中安装“Vibe 作业提交”插件。
+请按 STUDENT_GUIDE.md 的“第一次安装”步骤，协助我从官方 Marketplace 安装 Vibe 作业提交插件。注册时我会在本机终端输入学号、姓名和老师公布的课程邀请码；不要要求我在对话中提供或展示任何 submit_token。安装检查成功后，如本机有 codex 命令，请运行 `codex plugin add vibe-submit@vibe-course` 安装插件；否则指导我重启 Codex，并在 Vibe Course Marketplace 中安装“Vibe 作业提交”插件。
 ```
 
 Codex 可能会请求你批准安装 `uv` 或运行脚本；仅在确认脚本来自老师、服务器地址正确时批准。安装程序会自动生成并保存你的提交凭证；不要要求 Codex 展示它，也不要将其粘贴到对话、截图或作业文件中。
 
 ## 第一次安装：Windows 10/11
 
-1. 保存老师发来的 `bootstrap.ps1`，例如保存到“下载”文件夹。
-2. 打开 **Windows PowerShell**，进入脚本所在文件夹：
+打开 **Windows PowerShell**，直接复制并运行以下命令：
 
-   ```powershell
-   cd "$env:USERPROFILE\Downloads"
-   Set-ExecutionPolicy -Scope Process Bypass
-   .\bootstrap.ps1
-   ```
+```powershell
+if (-not (Get-Command uvx -ErrorAction SilentlyContinue)) {
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
+}
+$source = "git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.5#subdirectory=packages/vibe-submit"
+uvx --from $source vibe-submit bootstrap `
+  --marketplace-url "https://github.com/JasonLuo365/vibe-course-marketplace.git" `
+  --marketplace-name "vibe-course" `
+  --server "https://vibe.planlabopc.com"
+```
 
-3. 第一次执行时会自动安装 `uv`（Python 工具）并登记课程 Marketplace。服务器地址已由老师写入脚本；按提示输入你的**学号、姓名和课程邀请码**，且不要修改服务器地址。系统会自动完成注册并在本机保存提交凭证。
-4. 看到 `doctor` 中的 `Server reachable` 后，可以在终端执行 `codex plugin add vibe-submit@vibe-course` 直接安装插件；成功后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。这一步完成后才可以在 Codex 对话中使用提交功能。
+按提示输入你的**学号、姓名和课程邀请码**，且不要修改服务器地址。系统会自动完成注册并在本机保存提交凭证。看到 `doctor` 中的 `Server reachable` 后，可以在终端执行 `codex plugin add vibe-submit@vibe-course` 直接安装插件；成功后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。这一步完成后才可以在 Codex 对话中使用提交功能。
 
 > 如果 PowerShell 显示“无法识别 uv/uvx”，关闭当前 PowerShell，再新建一个 PowerShell 窗口重试。
 
 ## 第一次安装：macOS
 
-1. 保存老师发来的 `bootstrap.sh` 到“下载”文件夹。只运行教师直接发放的脚本。
-2. 打开 **终端**（Terminal），执行：
+打开 **终端**（Terminal），直接复制并运行以下命令：
 
-   ```bash
-   cd ~/Downloads
-   bash ./bootstrap.sh
-   ```
+```bash
+if ! command -v uvx >/dev/null 2>&1; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+source="git+https://github.com/JasonLuo365/vibe-course-marketplace.git@v0.1.5#subdirectory=packages/vibe-submit"
+uvx --from "$source" vibe-submit bootstrap \
+  --marketplace-url "https://github.com/JasonLuo365/vibe-course-marketplace.git" \
+  --marketplace-name "vibe-course" \
+  --server "https://vibe.planlabopc.com"
+```
 
-3. 脚本会在你的用户目录安装 `uv`，不需要管理员密码。服务器地址已由老师写入脚本；按提示输入你的**学号、姓名和课程邀请码**，且不要修改服务器地址。系统会自动完成注册并在本机保存提交凭证。
-4. 看到 `doctor` 中的 `Server reachable` 后，可以在终端执行 `codex plugin add vibe-submit@vibe-course` 直接安装插件；成功后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。若终端提示找不到 `uv`/`uvx`，关闭终端后重新打开，再运行一次 `bash ./bootstrap.sh`。
+按提示输入你的**学号、姓名和课程邀请码**，且不要修改服务器地址。系统会自动完成注册并在本机保存提交凭证。看到 `doctor` 中的 `Server reachable` 后，可以在终端执行 `codex plugin add vibe-submit@vibe-course` 直接安装插件；成功后完全退出并重新打开 Codex。若提示找不到 `codex` 或安装失败，则在重启后的“插件 / Marketplace”中找到 **Vibe Course**，安装 **Vibe 作业提交**。若终端提示找不到 `uv`/`uvx`，关闭终端后重新打开，再运行一次上述命令。
 
 ## 日常作业流程
 
@@ -95,7 +103,7 @@ vibe-submit doctor
 
 **换电脑、清除了本机配置或注册提示“学号已登记”？** 不要借用同学的电脑或凭证。联系教师在“学生管理”中重置你的提交凭证，并按教师给出的恢复步骤操作；旧凭证会立刻失效。
 
-**macOS 显示“permission denied”或无法运行？** 在终端使用 `bash ./bootstrap.sh`，不要双击脚本；确认脚本来自教师后再运行。
+**macOS 提示找不到 `uvx`？** 关闭终端后重新打开，再运行上述完整命令。
 
 ## 隐私与提交范围
 

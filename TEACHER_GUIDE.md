@@ -20,30 +20,11 @@ sudo docker compose exec server vibe-server create-assignment --help
 
 作业必须设置开放时间、截止时间、评分量规和包大小上限。随后在网页“学生管理”中为该课程点击“生成/重置邀请码”，设置每组最大人数；把邀请码发到课程群。学生安装插件时自行填写学号、姓名和邀请码，服务器自动创建其身份与提交凭证。
 
-## 二、生成并发放学生安装脚本
+## 二、统一发布安装说明
 
-在教师自己的 Windows 项目目录中执行：
+不需要生成或分发 `bootstrap.ps1` / `bootstrap.sh`。将 `STUDENT_GUIDE.md` 的链接或全文发到课程群/课程平台，并公布课程邀请码即可。指南内含 Windows 和 macOS 的可复制命令；命令从固定的 `v0.1.5` Marketplace 标签运行安装与自助注册流程。
 
-```powershell
-.\ops\render-bootstrap.ps1 `
-  -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
-  -ServerUrl 'https://vibe.planlabopc.com' `
-  -Version '0.1.5' `
-  -OutputPath '.\release\bootstrap.ps1'
-```
-
-若班上有 macOS 学生，你仍可在同一台 Windows 电脑的 PowerShell 中生成对应脚本：
-
-```powershell
-.\ops\render-bootstrap.ps1 `
-  -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
-  -ServerUrl 'https://vibe.planlabopc.com' `
-  -Version '0.1.5' `
-  -OutputPath '.\release\bootstrap.sh' `
-  -Platform macOS
-```
-
-将 `release/bootstrap.ps1`（Windows）、`release/bootstrap.sh`（macOS）和 `STUDENT_GUIDE.md` 统一发布到课程群或课程平台；再公布课程邀请码。所有学生共用同一份脚本，脚本不包含邀请码或任何学生凭证。
+群公告只需要包含两项：学生指南链接和课程邀请码。学生在自己的 Codex 中阅读指南、运行对应系统的命令并完成注册；不需要向教师索取脚本或初始提交令牌。
 
 ## 三、网页端日常操作
 

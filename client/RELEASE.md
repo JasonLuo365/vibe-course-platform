@@ -11,14 +11,6 @@ Before each classroom release:
 
 1. Run the client tests.
 2. Verify the immutable Git tag from a clean machine.
-3. Generate a bootstrap script after the production HTTPS URL is available:
+3. Verify that `STUDENT_GUIDE.md` names the production HTTPS URL and the same immutable tag. Students copy the documented Windows/macOS command directly; no per-class bootstrap script is distributed.
 
-```powershell
-.\ops\render-bootstrap.ps1 `
-  -MarketplaceUrl 'https://github.com/JasonLuo365/vibe-course-marketplace.git' `
-  -ServerUrl 'https://vibe.planlabopc.com' `
-  -Version '0.1.5' `
-  -OutputPath '.\release\bootstrap.ps1'
-```
-
-Do not put course invitation codes or student credentials in the generated script. Publish one script per operating system to the whole class; each student completes self-registration with their course invitation code, student number, and name.
+Course invitation codes and student credentials must never be embedded in a script or committed to Git. Students complete self-registration with the invitation code, student number, and name.
