@@ -14,6 +14,30 @@ def _evaluation_for_attempt(db: Session, attempt: models.SubmissionAttempt | Non
     )
 
 
+def _group_evaluation_for_assignment(
+    db: Session,
+    assignment_id: int,
+    group_id: int | None,
+):
+    if group_id is None:
+        return None
+    return (
+        db.query(models.GroupEvaluation)
+        .filter_by(assignment_id=assignment_id, group_id=group_id)
+        .order_by(models.GroupEvaluation.created_at.desc(), models.GroupEvaluation.id.desc())
+        .first()
+    )
+
+
+def _visible_override(db: Session, target_type: str, target_id: str):
+    return (
+        db.query(models.GradeOverride)
+        .filter_by(target_type=target_type, target_id=target_id, stale=False)
+        .order_by(models.GradeOverride.updated_at.desc(), models.GradeOverride.id.desc())
+        .first()
+    )
+
+
 def dashboard_data(db: Session, student: models.Student) -> dict:
     course = db.get(models.Course, student.course_id)
     group = db.get(models.Group, student.group_id) if student.group_id else None
@@ -46,3 +70,37 @@ def dashboard_data(db: Session, student: models.Student) -> dict:
             }
         )
     return {"student": student, "course": course, "group": group, "rows": rows}
+
+
+def submission_feedback_data(
+    db: Session,
+    student: models.Student,
+    submission: models.Submission,
+) -> dict:
+    assignment = db.get(models.Assignment, submission.assignment_id)
+    group = db.get(models.Group, student.group_id) if student.group_id else None
+    attempt = (
+        db.get(models.SubmissionAttempt, submission.current_attempt_id)
+        if submission.current_attempt_id
+        else None
+    )
+    evaluation = _evaluation_for_attempt(db, attempt)
+    group_evaluation = _group_evaluation_for_assignment(
+        db, submission.assignment_id, student.group_id
+    )
+    individual_override = _visible_override(
+        db, "individual", f"{submission.assignment_id}:{student.id}"
+    )
+    group_override = _visible_override(
+        db, "group", f"{submission.assignment_id}:{student.group_id}"
+    ) if student.group_id else None
+    return {
+        "assignment": assignment,
+        "group": group,
+        "submission": submission,
+        "attempt": attempt,
+        "evaluation": evaluation,
+        "group_evaluation": group_evaluation,
+        "individual_override": individual_override,
+        "group_override": group_override,
+    }

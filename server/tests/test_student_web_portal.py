@@ -157,3 +157,128 @@ def test_student_dashboard_requires_student_session(client):
 
     assert response.status_code == 302
     assert '/login' in response.headers['location']
+
+
+def _mk_submission_with_feedback():
+    db = SessionLocal()
+    course = models.Course(name='Vibe Coding', term='2026')
+    db.add(course)
+    db.flush()
+    group = models.Group(course_id=course.id, name='第三组')
+    db.add(group)
+    db.flush()
+    student = models.Student(
+        course_id=course.id,
+        group_id=group.id,
+        student_no='20260003',
+        name='王五',
+        submit_token_hash=hash_token('vs-feedback-token'),
+    )
+    classmate = models.Student(
+        course_id=course.id,
+        group_id=group.id,
+        student_no='20260004',
+        name='赵六',
+        submit_token_hash=hash_token('vs-classmate-token'),
+    )
+    db.add_all([student, classmate])
+    assignment = models.Assignment(
+        course_id=course.id,
+        code='FEEDBACK01',
+        title='交互式课程项目',
+        description='完成课程项目',
+        rubric_json=[],
+        opens_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        deadline=datetime(2026, 12, 31, tzinfo=timezone.utc),
+    )
+    db.add(assignment)
+    db.flush()
+    submission = models.Submission(
+        assignment_id=assignment.id,
+        student_id=student.id,
+        status='done',
+    )
+    db.add(submission)
+    db.flush()
+    attempt = models.SubmissionAttempt(
+        submission_id=submission.id,
+        attempt_no=1,
+        package_path='packages/feedback.zip',
+        size_bytes=1024,
+        manifest_version='1.0',
+        status='done',
+    )
+    db.add(attempt)
+    db.flush()
+    submission.current_attempt_id = attempt.id
+    evaluation = models.Evaluation(
+        attempt_id=attempt.id,
+        grade='B',
+        dimension_scores_json=[{'name': '完成度', 'score': 82, 'weight': 100, 'rationale': '功能完整'}],
+        rationale='个人评语：交互流程清晰，建议补充异常状态。',
+        feedback_json=['补充表单校验', '增加移动端测试'],
+        flags_json=[],
+        evidence_json=[],
+        model='test',
+        prompt_version='test',
+    )
+    db.add(evaluation)
+    group_evaluation = models.GroupEvaluation(
+        assignment_id=assignment.id,
+        group_id=group.id,
+        generation=1,
+        grade='A',
+        rationale='小组评语：整体方案完成度高，分工协作顺畅。',
+        contribution_json={'members': []},
+        evidence_json=[],
+    )
+    db.add(group_evaluation)
+    db.commit()
+    result = (student.id, classmate.id, submission.id)
+    db.close()
+    return result
+
+
+def _login_student(client, student_no, token):
+    response = client.post(
+        '/student/login',
+        json={'student_no': student_no, 'submit_token': token},
+    )
+    assert response.status_code == 200
+
+
+def test_student_can_view_personal_and_group_feedback(client):
+    _student_id, _classmate_id, submission_id = _mk_submission_with_feedback()
+    _login_student(client, '20260003', 'vs-feedback-token')
+
+    response = client.get(f'/student/submissions/{submission_id}')
+
+    assert response.status_code == 200
+    assert '个人评语：交互流程清晰' in response.text
+    assert '补充表单校验' in response.text
+    assert '小组评语：整体方案完成度高' in response.text
+    assert 'A' in response.text
+
+
+def test_student_cannot_view_another_students_feedback(client):
+    _student_id, _classmate_id, submission_id = _mk_submission_with_feedback()
+    _login_student(client, '20260004', 'vs-classmate-token')
+
+    response = client.get(f'/student/submissions/{submission_id}')
+
+    assert response.status_code == 404
+
+
+def test_student_page_session_is_invalidated_when_session_version_changes(client):
+    student_id = _mk_student('20260005', 'vs-version-token')
+    _login_student(client, '20260005', 'vs-version-token')
+    db = SessionLocal()
+    student = db.get(models.Student, student_id)
+    student.web_session_version += 1
+    db.commit()
+    db.close()
+
+    response = client.get('/student', follow_redirects=False)
+
+    assert response.status_code == 302
+    assert '/login' in response.headers['location']

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}{{ assignment.title }} - 评语 - Vibe{% endblock %}
+
+{% block content %}
+<div class="student-heading">
+  <div>
+    <a class="back-link" href="/student">← 返回我的作业</a>
+    <p class="eyebrow">ASSIGNMENT FEEDBACK</p>
+    <h1>{{ assignment.title }}</h1>
+    <p class="page-summary">{{ assignment.code }} · {{ group.name if group else '未分组' }} · 提交状态：{{ submission.status }}</p>
+  </div>
+  <div class="student-identity-card">
+    <span>个人成绩</span>
+    <strong>{{ individual_override.final_grade if individual_override else (evaluation.grade if evaluation else '待评估') }}</strong>
+  </div>
+</div>
+
+<div class="feedback-grid">
+  <section class="student-section">
+    <div class="section-heading"><div><p class="eyebrow">INDIVIDUAL</p><h2>我的个人评语</h2></div></div>
+    {% if evaluation %}
+    <div class="feedback-grade"><span>AI 评估等级</span><strong>{{ evaluation.grade }}</strong></div>
+    <div class="feedback-copy"><h3>综合评语</h3><p>{{ evaluation.rationale or '暂无综合评语。' }}</p></div>
+    {% if evaluation.dimension_scores_json %}
+    <div class="feedback-copy"><h3>维度得分</h3><div class="feedback-dimensions">
+      {% for dimension in evaluation.dimension_scores_json %}
+      <article><strong>{{ dimension.name }}</strong><span>{{ dimension.score }} 分{% if dimension.weight is defined %} · 权重 {{ dimension.weight }}%{% endif %}</span><p>{{ dimension.rationale }}</p></article>
+      {% endfor %}
+    </div></div>
+    {% endif %}
+    {% if evaluation.feedback_json %}
+    <div class="feedback-copy"><h3>改进建议</h3><ul>{% for item in evaluation.feedback_json %}<li>{{ item }}</li>{% endfor %}</ul></div>
+    {% endif %}
+    {% if individual_override and individual_override.comment %}
+    <div class="teacher-note"><h3>教师备注</h3><p>{{ individual_override.comment }}</p></div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state">{% if submission.status in ['queued', 'evaluating'] %}评估正在进行中，请稍后再来查看。{% else %}暂时还没有个人评语。{% endif %}</div>
+    {% endif %}
+  </section>
+
+  <section class="student-section">
+    <div class="section-heading"><div><p class="eyebrow">GROUP</p><h2>小组评语</h2></div></div>
+    {% if group_evaluation %}
+    <div class="feedback-grade"><span>小组成绩</span><strong>{{ group_override.final_grade if group_override else group_evaluation.grade }}</strong></div>
+    <div class="feedback-copy"><h3>小组综合评语</h3><p>{{ group_evaluation.rationale or '暂无小组综合评语。' }}</p></div>
+    {% if group_evaluation.contribution_json and group_evaluation.contribution_json.members %}
+    <div class="feedback-copy"><h3>成员贡献</h3><ul class="contribution-list">{% for member in group_evaluation.contribution_json.members %}<li><span>{{ member.student_no or member.name or '成员' }}</span><span>{{ member.contribution or member.score or '' }}</span></li>{% endfor %}</ul></div>
+    {% endif %}
+    {% if group_override and group_override.comment %}
+    <div class="teacher-note"><h3>教师备注</h3><p>{{ group_override.comment }}</p></div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state">暂时还没有小组评语。</div>
+    {% endif %}
+  </section>
+</div>
+
+<section class="student-section submission-meta-section">
+  <div class="section-heading"><div><p class="eyebrow">SUBMISSION</p><h2>提交信息</h2></div></div>
+  <dl class="submission-meta-list">
+    <div><dt>提交次数</dt><dd>{{ attempt.attempt_no if attempt else '—' }}</dd></div>
+    <div><dt>提交大小</dt><dd>{% if attempt %}{{ (attempt.size_bytes / 1024)|round(1) }} KB{% else %}—{% endif %}</dd></div>
+    <div><dt>提交版本</dt><dd>{{ attempt.manifest_version if attempt else '—' }}</dd></div>
+  </dl>
+</section>
+{% endblock %}
