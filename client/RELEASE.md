@@ -21,4 +21,4 @@ Before each classroom release:
   -OutputPath '.\release\bootstrap.ps1'
 ```
 
-Do not put student tokens in the generated script. Send each token privately.
+Do not put course invitation codes or student credentials in the generated script. Publish one script per operating system to the whole class; each student completes self-registration with their course invitation code, student number, and name.
