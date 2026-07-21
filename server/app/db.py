@@ -19,6 +19,7 @@ def init_engine(url: str):
 
 def create_all():
     from . import models  # noqa: F401  确保模型已注册
+    _upgrade_existing_schema()
     Base.metadata.create_all(_engine)
     # The MVP deliberately has no migration dependency.  Keep additions to
     # the report-release state compatible with already-created SQLite files.
@@ -51,6 +52,25 @@ def create_all():
             for name, sql_type in additions.items():
                 if name not in columns:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+
+
+def _upgrade_existing_schema():
+    """Apply small idempotent upgrades needed by existing SQLite databases."""
+    if _engine is None or _engine.dialect.name != "sqlite":
+        return
+    inspector = inspect(_engine)
+    if "students" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("students")}
+    if "web_session_version" in columns:
+        return
+    with _engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE students "
+                "ADD COLUMN web_session_version INTEGER NOT NULL DEFAULT 1"
+            )
+        )
 
 
 def get_db():
