@@ -399,6 +399,35 @@ class TestEvaluateGroup:
 
 
 class TestOpenAICompatProvider:
+    def test_uses_kimi_k2_compatible_parameters(self):
+        captured = {}
+
+        def handler(request: httpx.Request):
+            captured.update(json.loads(request.content))
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {"message": {"content": "{}"}, "finish_reason": "stop"}
+                    ]
+                },
+            )
+
+        provider = OpenAICompatProvider(
+            base_url="https://api.moonshot.cn/v1",
+            api_key="key",
+            model="kimi-k2.6",
+            transport=httpx.MockTransport(handler),
+        )
+
+        assert provider.complete(
+            [{"role": "user", "content": "hi"}], json_schema={}, max_tokens=32
+        ) == "{}"
+        assert captured["temperature"] == 1
+        assert captured["max_completion_tokens"] == 32
+        assert "max_tokens" not in captured
+        assert captured["response_format"] == {"type": "json_object"}
+
     def test_retries_429_and_5xx_with_backoff(self):
         attempts = []
 

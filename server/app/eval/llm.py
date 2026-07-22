@@ -46,6 +46,15 @@ class OpenAICompatProvider:
             "Content-Type": "application/json",
         }
 
+    def _uses_kimi_parameters(self) -> bool:
+        """Kimi K2.x accepts a narrower set of OpenAI-compatible parameters."""
+        base_url = self.base_url.lower()
+        return (
+            self.model.lower().startswith("kimi-")
+            or "moonshot.cn" in base_url
+            or "moonshot.ai" in base_url
+        )
+
     def complete(
         self,
         messages: list[dict[str, Any]],
@@ -56,9 +65,15 @@ class OpenAICompatProvider:
         body: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.1,
-            "max_tokens": max_tokens,
         }
+        if self._uses_kimi_parameters():
+            # Kimi K2.6 rejects values other than 1 for ``temperature`` and
+            # uses ``max_completion_tokens`` as its current output limit.
+            body["temperature"] = 1
+            body["max_completion_tokens"] = max_tokens
+        else:
+            body["temperature"] = 0.1
+            body["max_tokens"] = max_tokens
         if json_schema is not None:
             body["response_format"] = {"type": "json_object"}
 
@@ -86,7 +101,19 @@ class OpenAICompatProvider:
                 time.sleep(2 ** attempt)
                 continue
 
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                # Preserve an API's concise error body in the job record;
+                # this makes provider-parameter issues diagnosable in the UI.
+                detail = response.text.strip()
+                if detail:
+                    raise httpx.HTTPStatusError(
+                        f"{exc} Response: {detail[:1000]}",
+                        request=exc.request,
+                        response=exc.response,
+                    ) from exc
+                raise
             data = response.json()
             return data["choices"][0]["message"]["content"]
 
