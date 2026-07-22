@@ -178,6 +178,59 @@ class TestDetailPage:
             }],
         }]
 
+    def test_teacher_conversations_extracts_human_prompts_from_history_envelope(self):
+        timeline = RolloutTimeline(session_id="s1", path="x", turns=[
+            Turn(
+                "user",
+                "The following is the Codex agent history added since your last approval assessment.\n\n"
+                "[1] user: 完成实验报告的结论部分。\n\n"
+                "[2] assistant: 已完成。\n\n"
+                "[3] developer: internal policy text\n\n"
+                "[4] user: 再检查一下引用格式。\n\n"
+                "[5] tool js call: hidden tool input",
+                "2026-07-22T10:00:00Z",
+            ),
+            Turn(
+                "user",
+                "The following is the Codex agent history added since your last approval assessment.\n\n"
+                "[1] user: 完成实验报告的结论部分。\n\n"
+                "[2] assistant: 已完成。\n\n"
+                "[4] user: 再检查一下引用格式。",
+                "2026-07-22T10:02:00Z",
+            ),
+        ])
+
+        assert _teacher_conversations([timeline]) == [{
+            "session_id": "s1",
+            "prompt_pairs": [
+                {
+                    "prompt": "完成实验报告的结论部分。",
+                    "prompt_ts": "2026-07-22T10:00:00Z",
+                    "answer": None,
+                    "answer_ts": None,
+                },
+                {
+                    "prompt": "再检查一下引用格式。",
+                    "prompt_ts": "2026-07-22T10:00:00Z",
+                    "answer": None,
+                    "answer_ts": None,
+                },
+            ],
+        }]
+
+    def test_teacher_conversations_does_not_pair_later_answer_with_extracted_prompt(self):
+        timeline = RolloutTimeline(session_id="s1", path="x", turns=[
+            Turn("user", "earlier human request", "2026-07-22T10:00:00Z", True),
+            Turn("assistant", "a later unrelated reply", "2026-07-22T10:01:00Z"),
+        ])
+
+        assert _teacher_conversations([timeline])[0]["prompt_pairs"] == [{
+            "prompt": "earlier human request",
+            "prompt_ts": "2026-07-22T10:00:00Z",
+            "answer": None,
+            "answer_ts": None,
+        }]
+
     def test_detail_redirects_when_unauthenticated(self, client):
         r = client.get("/submissions/1", follow_redirects=False)
         assert r.status_code == 302

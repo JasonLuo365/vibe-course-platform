@@ -1,5 +1,6 @@
 import json
 import pathlib
+import re
 from dataclasses import dataclass
 
 MAX_TURN_CHARS = 2000
@@ -10,6 +11,7 @@ class Turn:
     kind: str
     text: str
     ts: str | None
+    from_history_envelope: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +19,62 @@ class RolloutTimeline:
     session_id: str
     path: str
     turns: list[Turn]
+
+
+_CODEX_HISTORY_ENVELOPE = re.compile(
+    r"the following is the codex agent history (?:whose request action you are assessing|added since your last approval assessment)",
+    re.IGNORECASE,
+)
+_CODEX_HISTORY_ENTRY = re.compile(
+    r"^\[(?P<index>\d+)\]\s+(?P<role>user|assistant|developer|system|tool[^:]*):\s*",
+    re.IGNORECASE | re.MULTILINE,
+)
+_HIDDEN_PROMPT_MARKERS = (
+    "<recommended_plugins>",
+    "<permissions instructions>",
+    "<environment_context>",
+    "<developer",
+    "the following is the codex agent history whose request action you are assessing",
+    "the following is the codex agent history added since your last approval assessment",
+    "continue the same review based on the latest transcript",
+)
+
+
+def is_displayable_human_prompt(text: str) -> bool:
+    """Return whether a prompt is safe and useful to show to a teacher."""
+    cleaned = " ".join(text.split())
+    if len(cleaned) < 2 or len(cleaned) > 6000:
+        return False
+    lowered = cleaned.lower()
+    if any(marker in lowered for marker in _HIDDEN_PROMPT_MARKERS):
+        return False
+    replacement_ratio = cleaned.count("\ufffd") / max(len(cleaned), 1)
+    control_ratio = sum(
+        ord(char) < 32 and char not in "\n\t" for char in cleaned
+    ) / max(len(cleaned), 1)
+    return replacement_ratio < 0.03 and control_ratio < 0.03
+
+
+def extract_history_envelope_user_prompts(text: str) -> list[tuple[str, str]] | None:
+    """Extract labelled human requests from a Codex history-envelope record.
+
+    ``None`` means this is an ordinary user turn and should be handled as-is.
+    An empty list means a recognised envelope contained no safe human request;
+    callers must not expose the enclosing synthetic context as a prompt.
+    """
+    if not _CODEX_HISTORY_ENVELOPE.search(text):
+        return None
+
+    entries = list(_CODEX_HISTORY_ENTRY.finditer(text))
+    prompts: list[tuple[str, str]] = []
+    for pos, entry in enumerate(entries):
+        if entry.group("role").lower() != "user":
+            continue
+        end = entries[pos + 1].start() if pos + 1 < len(entries) else len(text)
+        prompt = text[entry.end() : end].strip()
+        if is_displayable_human_prompt(prompt):
+            prompts.append((entry.group("index"), prompt))
+    return prompts
 
 
 def _extract_text(payload: dict) -> str:
@@ -92,6 +150,7 @@ def parse_rollout(path: str) -> RolloutTimeline:
     p = pathlib.Path(path)
     session_id = p.stem
     turns: list[Turn] = []
+    seen_history_entries: set[tuple[str, str]] = set()
     skipped = 0
 
     try:
@@ -131,6 +190,26 @@ def parse_rollout(path: str) -> RolloutTimeline:
         kind = _classify_kind(payload)
         text = _extract_text(payload)
         ts = _extract_ts(payload)
+
+        # Codex may resume an approval/assessment interaction by putting the
+        # complete earlier transcript in a synthetic ``user`` record. Expand
+        # this before truncation, retain only labelled human requests, and
+        # prevent repeated history envelopes from duplicating them.
+        if kind == "user":
+            history_prompts = extract_history_envelope_user_prompts(text)
+            if history_prompts is not None:
+                for index, prompt in history_prompts:
+                    key = (index, prompt)
+                    if key in seen_history_entries:
+                        continue
+                    seen_history_entries.add(key)
+                    turns.append(Turn(
+                        kind="user",
+                        text=prompt[:MAX_TURN_CHARS],
+                        ts=ts,
+                        from_history_envelope=True,
+                    ))
+                continue
 
         if len(text) > MAX_TURN_CHARS:
             text = text[:MAX_TURN_CHARS]

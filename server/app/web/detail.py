@@ -19,7 +19,11 @@ from ..db import get_db
 from ..deps import get_teacher
 from ..errors import ApiError
 from ..eval.metrics import compute_metrics
-from ..eval.parser import parse_rollout
+from ..eval.parser import (
+    extract_history_envelope_user_prompts,
+    is_displayable_human_prompt,
+    parse_rollout,
+)
 from ..utils import utcnow
 from .pages import get_teacher_page
 
@@ -85,24 +89,22 @@ def _safe_extract_root(settings: Settings) -> pathlib.Path:
 
 
 def _is_displayable_prompt(text: str) -> bool:
-    """Hide injected/system-like, garbled, and content-free prompt records."""
-    cleaned = " ".join(text.split())
-    if len(cleaned) < 2 or len(cleaned) > 6000:
-        return False
-    lowered = cleaned.lower()
-    if any(marker in lowered for marker in (
-        "<recommended_plugins>",
-        "<permissions instructions>",
-        "<environment_context>",
-        "<developer",
-        "the following is the codex agent history whose request action you are assessing",
-        "the following is the codex agent history added since your last approval assessment",
-        "continue the same review based on the latest transcript",
-    )):
-        return False
-    replacement_ratio = cleaned.count("\ufffd") / max(len(cleaned), 1)
-    control_ratio = sum(ord(char) < 32 and char not in "\n\t" for char in cleaned) / max(len(cleaned), 1)
-    return replacement_ratio < 0.03 and control_ratio < 0.03
+    """Compatibility wrapper for the shared prompt-safety rule."""
+    return is_displayable_human_prompt(text)
+
+
+def _embedded_history_prompts(text: str) -> list[str]:
+    """Extract human prompts from Codex's history-envelope records.
+
+    Codex may place earlier conversation turns inside a synthetic ``user``
+    record when it resumes an approval or assessment context. The enclosing
+    record is intentionally hidden by :func:`_is_displayable_prompt`, but its
+    labelled ``[N] user:`` entries are genuine student requests. Only those
+    labelled entries are returned; system, developer, assistant and tool
+    blocks remain private.
+    """
+    entries = extract_history_envelope_user_prompts(text)
+    return [prompt for _index, prompt in entries] if entries is not None else []
 
 
 def _teacher_conversations(timelines):
@@ -111,10 +113,41 @@ def _teacher_conversations(timelines):
     for timeline in timelines:
         session = {"session_id": timeline.session_id, "prompt_pairs": []}
         current = None
+        embedded_prompts_seen: set[str] = set()
         for turn in timeline.turns:
             if turn.kind == "user":
                 if current is not None:
                     session["prompt_pairs"].append(current)
+                if turn.from_history_envelope:
+                    # The matching assistant reply is not present as a
+                    # separate raw turn, so never attach a later unrelated
+                    # reply to an extracted historical prompt.
+                    if _is_displayable_prompt(turn.text):
+                        session["prompt_pairs"].append({
+                            "prompt": turn.text,
+                            "prompt_ts": turn.ts,
+                            "answer": None,
+                            "answer_ts": None,
+                        })
+                    current = None
+                    continue
+                embedded_prompts = _embedded_history_prompts(turn.text)
+                if embedded_prompts:
+                    # History envelopes repeat earlier messages and do not
+                    # carry a reliable matching final answer.
+                    for prompt in embedded_prompts:
+                        normalized = " ".join(prompt.split())
+                        if normalized in embedded_prompts_seen:
+                            continue
+                        embedded_prompts_seen.add(normalized)
+                        session["prompt_pairs"].append({
+                            "prompt": prompt,
+                            "prompt_ts": turn.ts,
+                            "answer": None,
+                            "answer_ts": None,
+                        })
+                    current = None
+                    continue
                 if not _is_displayable_prompt(turn.text):
                     current = None
                     continue
@@ -373,6 +406,14 @@ def submission_detail(
 
     final_grade = _final_grade(override, evaluation)
     ai_grade = evaluation.grade if evaluation else None
+    conversations = _teacher_conversations(timelines)
+    # ``metrics.user_turns`` remains an audit metric and can include synthetic
+    # Codex context records. The teacher view reports only safe prompts that
+    # can actually be rendered.
+    display_metrics = dict(metrics)
+    display_metrics["user_turns"] = sum(
+        len(session["prompt_pairs"]) for session in conversations
+    )
 
     return templates.TemplateResponse(
         request,
@@ -388,8 +429,8 @@ def submission_detail(
             "final_grade": final_grade,
             "ai_grade": ai_grade,
             "timelines": timelines,
-            "conversations": _teacher_conversations(timelines),
-            "metrics": metrics,
+            "conversations": conversations,
+            "metrics": display_metrics,
             "code_files": code_files,
             "code_tree": _code_tree(code_files),
             "selected_code": selected_code,

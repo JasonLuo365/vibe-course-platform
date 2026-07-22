@@ -182,6 +182,49 @@ class TestParseRollout:
         timeline = parse_rollout(str(path))
         assert len(timeline.turns[0].text) == 2000
 
+    def test_expands_history_envelope_before_truncating(self, tmp_path):
+        path = tmp_path / "history-envelope.jsonl"
+        long_prompt = "first request " + "x" * 2500
+        envelope = (
+            "The following is the Codex agent history added since your last approval assessment.\n\n"
+            "[1] developer: hidden policy\n\n"
+            f"[2] user: {long_prompt}\n\n"
+            "[3] assistant: hidden historical reply\n\n"
+            "[4] user: second request\n\n"
+            "[5] tool js call: hidden tool input"
+        )
+        lines = [
+            {"type": "session_meta", "payload": {"id": "history", "timestamp": "2026-07-19T10:00:00Z"}},
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "content": envelope,
+                    "timestamp": "2026-07-19T10:01:00Z",
+                },
+            },
+            {
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": "latest response",
+                },
+            },
+        ]
+        _write_jsonl(path, lines)
+
+        timeline = parse_rollout(str(path))
+
+        assert [turn.kind for turn in timeline.turns] == ["user", "user", "assistant"]
+        assert len(timeline.turns[0].text) == 2000
+        assert timeline.turns[0].from_history_envelope is True
+        assert timeline.turns[1].from_history_envelope is True
+        assert timeline.turns[1].text == "second request"
+        assert timeline.turns[2].text == "latest response"
+        assert compute_metrics([timeline])["user_turns"] == 2
+
     def test_bad_lines_are_skipped(self, good_rollout):
         timeline = parse_rollout(good_rollout)
         # The 9 good lines produce 8 turns (session_meta excluded), bad line skipped.
