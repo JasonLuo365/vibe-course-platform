@@ -426,6 +426,7 @@ class TestOpenAICompatProvider:
         assert captured["temperature"] == 1
         assert captured["max_completion_tokens"] == 32
         assert "max_tokens" not in captured
+        assert captured["thinking"] == {"type": "disabled"}
         assert captured["response_format"] == {"type": "json_object"}
 
     def test_retries_429_and_5xx_with_backoff(self):

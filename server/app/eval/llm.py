@@ -69,8 +69,12 @@ class OpenAICompatProvider:
         if self._uses_kimi_parameters():
             # Kimi K2.6 rejects values other than 1 for ``temperature`` and
             # uses ``max_completion_tokens`` as its current output limit.
+            # Evaluation only needs the final JSON, so disable its optional
+            # thinking trace to keep long project reviews within the HTTP
+            # read timeout.
             body["temperature"] = 1
             body["max_completion_tokens"] = max_tokens
+            body["thinking"] = {"type": "disabled"}
         else:
             body["temperature"] = 0.1
             body["max_tokens"] = max_tokens
