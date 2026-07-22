@@ -163,6 +163,8 @@ def code_digest(extract_dir: str, max_files: int = 20, max_chars: int = 8000) ->
 def _validate_evidence(
     evidence: list[Evidence], timelines: list[RolloutTimeline]
 ) -> None:
+    if not timelines and evidence:
+        raise EvalError("无会话记录时 evidence 必须为空数组")
     timeline_by_id = {t.session_id: t for t in timelines}
     for ev in evidence:
         timeline = timeline_by_id.get(ev.session_id)
@@ -256,6 +258,7 @@ def evaluate_individual(
         rubric,
         profile=profile,
         custom_instructions=custom_instructions,
+        has_sessions=bool(timelines),
     )
 
     last_error: Exception | None = None

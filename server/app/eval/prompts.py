@@ -1,6 +1,6 @@
 import json
 
-PROMPT_VERSION = "v3"
+PROMPT_VERSION = "v4"
 
 # These are the reusable, teacher-facing evaluation prompt templates.  Keep
 # their ids stable because each assignment stores the selected id.
@@ -171,20 +171,33 @@ def _format_rubric(rubric: list[dict]) -> str:
 
 
 def _system_prompt(
-    rubric: list[dict], profile: str, custom_instructions: str
+    rubric: list[dict], profile: str, custom_instructions: str, *, has_sessions: bool
 ) -> str:
+    if has_sessions:
+        evidence_rules = (
+            "2. 每条 evidence 必须给出 session_id、turn 序号和原文 quote；\n"
+            "3. quote 必须是原始 rollout 中的真实片段，禁止编造；\n"
+            "4. 【硬性要求】每条 quote 最多 200 个字符（约两三句话）。"
+            "只截取最关键的一小段原文，宁可更短也不得超过 200 字符；"
+            "超过 200 字符的 quote 会被系统自动拒收并导致整份评估作废；\n"
+            "5. 若发现无法对应到原始记录的引用、超长的 quote 或无法验证的声明，"
+            "请在 flags 中明确标注「真实性风险」。\n"
+        )
+    else:
+        evidence_rules = (
+            "2. 本次没有可用的 rollout 会话记录。只能基于代码、最终报告节选和指标"
+            "评价最终成果，不得臆测学生的交互过程或个人提示词能力；\n"
+            "3. evidence 必须返回空数组 []。不得把文件名、目录名或 manifest.json "
+            "当作 session_id，也不得生成 turn 或 quote；\n"
+            "4. 请在 flags 中标注「无过程会话记录，仅按成果评估」。\n"
+        )
     return (
         "你是大学 Vibe Coding 课程的助教评审。"
         "你只基于提供的证据（rollout 会话记录、代码与最终报告节选、指标）进行评分，不得臆测任何未给出的信息。\n"
         "评分纪律：\n"
         "1. 每条评分结论必须能被证据支持；\n"
-        "2. 每条 evidence 必须给出 session_id、turn 序号和原文 quote；\n"
-        "3. quote 必须是原始 rollout 中的真实片段，禁止编造；\n"
-        "4. 【硬性要求】每条 quote 最多 200 个字符（约两三句话）。"
-        "只截取最关键的一小段原文，宁可更短也不得超过 200 字符；"
-        "超过 200 字符的 quote 会被系统自动拒收并导致整份评估作废；\n"
-        "5. 若发现无法对应到原始记录的引用、超长的 quote 或无法验证的声明，"
-        "请在 flags 中明确标注「真实性风险」。\n\n"
+        + evidence_rules
+        + "\n"
         "评分维度与权重：\n"
         f"{_format_rubric(rubric)}\n\n"
         "本次评价档案：\n"
@@ -221,6 +234,7 @@ def individual_messages(
     profile: str = "generic_experiment",
     custom_instructions: str = "",
     error_note: str | None = None,
+    has_sessions: bool = True,
 ) -> list[dict[str, str]]:
     user_content = (
         "请根据以下证据包、指标和评分标准，对学生本次作业进行个人评估。\n\n"
@@ -234,7 +248,9 @@ def individual_messages(
     return [
         {
             "role": "system",
-            "content": _system_prompt(rubric, profile, custom_instructions),
+            "content": _system_prompt(
+                rubric, profile, custom_instructions, has_sessions=has_sessions
+            ),
         },
         {"role": "user", "content": user_content},
     ]

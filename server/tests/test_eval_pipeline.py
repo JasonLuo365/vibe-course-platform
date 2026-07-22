@@ -180,6 +180,21 @@ def _valid_group_json():
 
 
 class TestEvaluateIndividual:
+    def test_no_sessions_can_evaluate_final_artifacts_without_evidence(
+        self, code_digest_text, metrics, rubric
+    ):
+        response = json.loads(_valid_individual_json())
+        response["evidence"] = []
+        provider = FakeLLMProvider(responses=[json.dumps(response, ensure_ascii=False)])
+
+        result = evaluate_individual([], code_digest_text, metrics, rubric, provider)
+
+        assert result["grade"] == "B"
+        assert result["evidence"] == []
+        system = provider.calls[0]["messages"][0]["content"]
+        assert "evidence 必须返回空数组 []" in system
+        assert "仅按成果评估" in system
+
     def test_team_vibe_coding_profile_is_outcome_first(
         self, timelines, code_digest_text, metrics, rubric
     ):
