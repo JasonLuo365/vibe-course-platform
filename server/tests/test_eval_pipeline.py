@@ -423,7 +423,7 @@ class TestOpenAICompatProvider:
         assert provider.complete(
             [{"role": "user", "content": "hi"}], json_schema={}, max_tokens=32
         ) == "{}"
-        assert captured["temperature"] == 1
+        assert captured["temperature"] == 0.6
         assert captured["max_completion_tokens"] == 32
         assert "max_tokens" not in captured
         assert captured["thinking"] == {"type": "disabled"}
