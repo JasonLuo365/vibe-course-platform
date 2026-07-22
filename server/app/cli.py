@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import models
 from .api.assignments import AssignmentIn, _as_naive_utc, _new_code
+from .api.courses import create_course_enrollment
 from .config import get_settings
 from .db import SessionLocal, create_all, init_engine
 from .errors import ApiError
@@ -68,8 +69,11 @@ def main():
         elif args.cmd == "create-course":
             course = models.Course(name=args.name, term=args.term)
             db.add(course)
+            db.flush()
+            _enrollment, code = create_course_enrollment(db, course.id)
             db.commit()
-            print(json.dumps({"id": course.id, "name": course.name, "term": course.term}, ensure_ascii=False))
+            print(json.dumps({"id": course.id, "name": course.name, "term": course.term,
+                              "enrollment_code": code}, ensure_ascii=False))
 
         elif args.cmd == "import-roster":
             if not db.get(models.Course, args.course_id):

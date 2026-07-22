@@ -25,6 +25,36 @@ def test_roster_import_creates_students_without_credentials(client):
     db.close()
 
 
+def test_course_creation_generates_one_enrollment_code(client):
+    _login(client)
+    created = client.post("/courses", json={"name": "VC101", "term": "2026秋"})
+    assert created.status_code == 200, created.text
+    body = created.json()
+    assert body["enrollment_code"].startswith("vc_")
+
+    db = SessionLocal()
+    enrollment = db.query(models.CourseEnrollment).filter_by(course_id=body["id"]).one()
+    db.close()
+    assert enrollment.enrollment_code == body["enrollment_code"]
+
+    repeated = client.post(
+        f"/courses/{body['id']}/enrollment-code", json={"max_group_size": 2}
+    )
+    assert repeated.status_code == 200
+    assert repeated.json()["enrollment_code"] == body["enrollment_code"]
+    assert repeated.json()["max_group_size"] == 6
+
+    settings = client.put(
+        f"/courses/{body['id']}/enrollment-settings", json={"max_group_size": 2}
+    )
+    assert settings.status_code == 200
+    assert settings.json()["enrollment_code"] == body["enrollment_code"]
+    assert settings.json()["max_group_size"] == 2
+
+    duplicate = client.post("/courses", json={"name": " VC101 ", "term": "2026秋"})
+    assert duplicate.status_code == 409
+
+
 def test_teacher_cannot_reset_student_password(client):
     _login(client)
     cid = client.post("/courses", json={"name": "C", "term": ""}).json()["id"]

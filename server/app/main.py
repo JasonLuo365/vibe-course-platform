@@ -12,6 +12,7 @@ from starlette.templating import Jinja2Templates
 from .api import assignments, auth, courses, reports, submissions
 from .config import Settings, get_settings
 from .errors import ApiError, api_error_handler
+from .utils import format_teacher_time
 from .web import PageAuthRequired
 from .web import pages as web_pages
 from .web import detail as web_detail
@@ -21,6 +22,7 @@ from .web import present as web_present
 templates = Jinja2Templates(
     directory=str(Path(__file__).parent / "templates"),
 )
+templates.env.filters["teacher_time"] = format_teacher_time
 
 
 @asynccontextmanager

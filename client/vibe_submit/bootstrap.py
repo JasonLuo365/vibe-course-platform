@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import getpass
 import os
 import shutil
 import subprocess
@@ -269,12 +268,16 @@ def _configure(
         student_no = input("学号: ").strip()
     if name is None:
         name = input("姓名: ").strip()
+    print("密码要求：8–12 位。为便于核对，输入内容会直接显示在终端。")
     if password is None:
-        password = getpass.getpass("用户密码: ")
+        password = input("用户密码: ")
     if password_confirm is None:
-        password_confirm = getpass.getpass("确认密码: ")
+        password_confirm = input("确认密码: ")
     if password != password_confirm:
         print("config: 两次输入的密码不一致")
+        return False
+    if not 8 <= len(password) <= 12:
+        print("config: 密码长度须为 8 到 12 个字符")
         return False
 
     try:

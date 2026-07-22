@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}创建课程 - Vibe{% endblock %}
+{% block content %}
+<section class="page-heading"><div><p class="eyebrow">教师端</p><h1>创建课程</h1><p class="page-summary">每门课程会自动生成一个课程邀请码；随后可在课程内创建多份作业。</p></div></section>
+<section class="card"><form method="post" action="/courses/new">
+  <label for="name">课程名称</label><input id="name" name="name" maxlength="100" placeholder="例如：AI 辅助软件工程" required>
+  <label for="term">学期／班级（可选）</label><input id="term" name="term" maxlength="100" placeholder="例如：2026 春季／01 班">
+  <button type="submit" class="button">创建课程并生成邀请码</button>
+</form></section>
+{% endblock %}

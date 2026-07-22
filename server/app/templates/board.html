@@ -7,7 +7,7 @@
   <div>
     <p class="eyebrow">作业总览</p>
     <h1>{{ assignment.title }}</h1>
-    <p class="meta">作业码：<code>{{ assignment.code }}</code>　截止时间：{{ assignment.deadline.isoformat() }}</p>
+    <p class="meta">作业码：<code>{{ assignment.code }}</code>　截止时间：{{ assignment.deadline|teacher_time }}</p>
   </div>
   <div class="view-actions">
     <a class="button button-secondary" href="/assignments/{{ assignment.id }}/evaluation-config">评估提示词</a>

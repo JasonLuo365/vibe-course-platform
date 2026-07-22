@@ -29,7 +29,7 @@ class StudentPasswordResetIn(BaseModel):
 
 
 def _valid_password(password: str) -> bool:
-    return 8 <= len(password) <= 128
+    return 8 <= len(password) <= 12
 
 
 @router.post("/login")
@@ -70,7 +70,7 @@ def reset_student_password(
     if body.password != body.password_confirm:
         raise ApiError(422, "PASSWORD_MISMATCH", "两次输入的密码不一致")
     if not _valid_password(body.password):
-        raise ApiError(422, "WEAK_PASSWORD", "密码长度须为 8 到 128 个字符")
+        raise ApiError(422, "WEAK_PASSWORD", "密码长度须为 8 到 12 个字符")
     students = db.query(models.Student).filter_by(student_no=body.student_no).all()
     if len(students) == 1:
         student = students[0]

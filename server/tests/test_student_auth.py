@@ -55,6 +55,16 @@ def test_student_login_and_password_reset(client):
     assert client.post("/student/login", json={"student_no": "1", "password": "new-password"}).status_code == 200
 
 
+def test_student_password_rejects_more_than_12_characters(client):
+    _mk_student()
+    too_long = "student-password"
+    response = client.post(
+        "/student/password/reset",
+        json={"student_no": "1", "password": too_long, "password_confirm": too_long},
+    )
+    assert response.status_code == 422
+
+
 def test_password_reset_uses_a_dedicated_page(client):
     login_page = client.get("/login")
     assert 'href="/student/password/reset"' in login_page.text
@@ -63,4 +73,6 @@ def test_password_reset_uses_a_dedicated_page(client):
     reset_page = client.get("/student/password/reset")
     assert reset_page.status_code == 200
     assert 'student-password-reset-form' in reset_page.text
+    assert 'type="text" id="reset-password" minlength="8" maxlength="12"' in reset_page.text
+    assert '密码要求为 8–12 位' in reset_page.text
     assert 'href="/login"' in reset_page.text

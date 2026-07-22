@@ -3,7 +3,7 @@ import string
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from .. import models
@@ -17,6 +17,17 @@ router = APIRouter()
 _ALPHABET = string.ascii_uppercase + string.digits
 
 
+def _default_rubric() -> list["RubricItem"]:
+    """Keep a stable internal criterion when the teacher uses prompt-based grading."""
+    return [
+        RubricItem(
+            name="综合完成情况",
+            weight=100,
+            description="结合本作业说明、评价提示词和提交证据进行综合评价。",
+        )
+    ]
+
+
 class RubricItem(BaseModel):
     name: str
     weight: int
@@ -26,7 +37,7 @@ class RubricItem(BaseModel):
 class AssignmentIn(BaseModel):
     title: str
     description: str = ""
-    rubric: list[RubricItem]
+    rubric: list[RubricItem] = Field(default_factory=_default_rubric)
     evaluation_profile: str = "generic_experiment"
     evaluation_instructions: str = ""
     opens_at: datetime

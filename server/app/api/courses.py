@@ -19,6 +19,22 @@ class CourseIn(BaseModel):
     name: str
     term: str = ""
 
+    @field_validator("name")
+    @classmethod
+    def valid_name(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value or len(value) > 100:
+            raise ValueError("课程名称不能为空且最多 100 个字符")
+        return value
+
+    @field_validator("term")
+    @classmethod
+    def valid_term(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if len(value) > 100:
+            raise ValueError("学期/班级最多 100 个字符")
+        return value
+
 
 class RosterIn(BaseModel):
     csv: str
@@ -50,8 +66,8 @@ class RegisterIn(BaseModel):
     @field_validator("password")
     @classmethod
     def valid_password(cls, value: str) -> str:
-        if not 8 <= len(value) <= 128:
-            raise ValueError("密码长度须为 8 到 128 个字符")
+        if not 8 <= len(value) <= 12:
+            raise ValueError("密码长度须为 8 到 12 个字符")
         return value
 
 
@@ -83,12 +99,42 @@ class MoveStudentIn(BaseModel):
     group_id: int | None = None
 
 
+class StudentUpdateIn(BaseModel):
+    student_no: str
+    name: str
+
+    @field_validator("student_no", "name")
+    @classmethod
+    def valid_student_value(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value or len(value) > 100:
+            raise ValueError("学号和姓名不能为空且最多 100 个字符")
+        return value
+
+
 def _enrollment(db: Session, course_id: int):
     return db.query(models.CourseEnrollment).filter_by(course_id=course_id).first()
 
 
 def _new_course_code() -> str:
     return "vc_" + secrets.token_urlsafe(18)
+
+
+def create_course_enrollment(
+    db: Session, course_id: int, max_group_size: int = 6
+) -> tuple[models.CourseEnrollment, str]:
+    """Create the single active enrollment code for a newly-created course."""
+    code = _new_course_code()
+    while db.query(models.CourseEnrollment).filter_by(code_hash=hash_token(code)).first():
+        code = _new_course_code()
+    enrollment = models.CourseEnrollment(
+        course_id=course_id,
+        code_hash=hash_token(code),
+        enrollment_code=code,
+        max_group_size=max_group_size,
+    )
+    db.add(enrollment)
+    return enrollment, code
 
 
 def _new_group_code() -> str:
@@ -114,10 +160,27 @@ def _profile(db: Session, student: models.Student) -> dict:
 @router.post("/courses")
 def create_course(body: CourseIn, db: Session = Depends(get_db),
                   t: models.Teacher = Depends(get_teacher)):
+    existing = next(
+        (
+            course for course in db.query(models.Course).all()
+            if course.name.casefold() == body.name.casefold()
+            and course.term.casefold() == body.term.casefold()
+        ),
+        None,
+    )
+    if existing:
+        raise ApiError(409, "COURSE_EXISTS", "同名课程和学期/班级已存在")
     c = models.Course(name=body.name, term=body.term)
     db.add(c)
+    db.flush()
+    _enrollment, code = create_course_enrollment(db, c.id)
     db.commit()
-    return {"id": c.id, "name": c.name, "term": c.term}
+    return {
+        "id": c.id,
+        "name": c.name,
+        "term": c.term,
+        "enrollment_code": code,
+    }
 
 
 @router.post("/courses/{course_id}/enrollment-code")
@@ -125,22 +188,37 @@ def create_enrollment_code(course_id: int, body: EnrollmentIn, db: Session = Dep
                            t: models.Teacher = Depends(get_teacher)):
     if not db.get(models.Course, course_id):
         raise ApiError(404, "NOT_FOUND", "课程不存在")
-    code = _new_course_code()
     enrollment = _enrollment(db, course_id)
     if enrollment is None:
-        enrollment = models.CourseEnrollment(
-            course_id=course_id,
-            code_hash=hash_token(code),
-            enrollment_code=code,
-            max_group_size=body.max_group_size,
-        )
-        db.add(enrollment)
-    else:
+        enrollment, code = create_course_enrollment(db, course_id, body.max_group_size)
+    elif enrollment.enrollment_code is None:
+        # Legacy records did not retain the plaintext invitation code.  Generate
+        # it once so that this course can enter the immutable-code workflow.
+        code = _new_course_code()
         enrollment.code_hash = hash_token(code)
         enrollment.enrollment_code = code
         enrollment.max_group_size = body.max_group_size
+    else:
+        # A course code identifies the course for its full lifetime.  Keep this
+        # endpoint idempotent for older clients instead of rotating the code.
+        code = enrollment.enrollment_code
     db.commit()
     return {"course_id": course_id, "enrollment_code": code, "max_group_size": enrollment.max_group_size}
+
+
+@router.put("/courses/{course_id}/enrollment-settings")
+def update_enrollment_settings(course_id: int, body: EnrollmentIn, db: Session = Depends(get_db),
+                               t: models.Teacher = Depends(get_teacher)):
+    enrollment = _enrollment(db, course_id)
+    if enrollment is None:
+        raise ApiError(422, "REGISTRATION_NOT_CONFIGURED", "请先生成课程邀请码")
+    enrollment.max_group_size = body.max_group_size
+    db.commit()
+    return {
+        "course_id": course_id,
+        "enrollment_code": enrollment.enrollment_code,
+        "max_group_size": enrollment.max_group_size,
+    }
 
 
 @router.post("/courses/{course_id}/group-lock")
@@ -191,6 +269,40 @@ def teacher_move_student(student_id: int, body: MoveStudentIn, db: Session = Dep
     student.group_id = body.group_id
     db.commit()
     return _profile(db, student)
+
+
+@router.put("/students/{student_id}")
+def teacher_update_student(student_id: int, body: StudentUpdateIn, db: Session = Depends(get_db),
+                           t: models.Teacher = Depends(get_teacher)):
+    student = db.get(models.Student, student_id)
+    if student is None:
+        raise ApiError(404, "NOT_FOUND", "学生不存在")
+    duplicate = db.query(models.Student).filter_by(
+        course_id=student.course_id, student_no=body.student_no
+    ).first()
+    if duplicate and duplicate.id != student.id:
+        raise ApiError(409, "STUDENT_EXISTS", "该课程已存在此学号")
+    student.student_no = body.student_no
+    student.name = body.name
+    db.commit()
+    return {
+        "id": student.id,
+        "course_id": student.course_id,
+        "student_no": student.student_no,
+        "name": student.name,
+    }
+
+
+@router.delete("/students/{student_id}", status_code=204)
+def teacher_delete_student(student_id: int, db: Session = Depends(get_db),
+                           t: models.Teacher = Depends(get_teacher)):
+    student = db.get(models.Student, student_id)
+    if student is None:
+        raise ApiError(404, "NOT_FOUND", "学生不存在")
+    if db.query(models.Submission).filter_by(student_id=student.id).first():
+        raise ApiError(409, "STUDENT_HAS_SUBMISSIONS", "该学生已有提交，不能删除以免破坏评估历史")
+    db.delete(student)
+    db.commit()
 
 
 @router.post("/api/student-registration", status_code=201)

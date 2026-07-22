@@ -6,7 +6,7 @@
 
 - 一台 Linux VPS、一个已解析到该 VPS 的域名、开放 80/443 端口。
 - Docker Engine、Docker Compose plugin、Caddy。
-- 可用且有额度的 OpenAI 兼容 LLM API Key。
+- 可用且有额度的 Kimi（Moonshot）API Key。
 - 已发布且固定版本的 `vibe-submit`；发布后先在一台干净 Windows 机器上验证安装与提交。
 
 ## 部署
@@ -22,7 +22,7 @@ chmod 600 server/.env
 
 - `VIBE_SESSION_SECRET` 必须是至少 32 个字符的随机值；可用 `python -c "import secrets; print(secrets.token_urlsafe(48))"` 生成。
 - `VIBE_ALLOWED_HOSTS` 中替换真实域名，并保留 `localhost`、`127.0.0.1`。
-- 填写 LLM 地址、模型名和 API Key。
+- 填写 Kimi API Key；示例已预设 `VIBE_LLM_BASE_URL=https://api.moonshot.cn/v1` 和 `VIBE_LLM_MODEL=kimi-k2.6`。如改用其他 Kimi 模型，请同时更新模型名。
 - 保持 `VIBE_ENVIRONMENT=production`、`VIBE_SESSION_HTTPS_ONLY=true`、`VIBE_TRUST_PROXY_HEADERS=true`。
 
 应用端口只绑定在 `127.0.0.1:8000`，不会直接暴露 HTTP：

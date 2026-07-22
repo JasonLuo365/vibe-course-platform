@@ -57,3 +57,19 @@ def test_configure_rejects_mismatched_password_before_registration(tmp_path, mon
         "2026001", "张三", "vc_invite", "student-pass", "other-password", "https://class.example"
     )
     assert called is False
+
+
+def test_configure_rejects_password_outside_8_to_12_characters(tmp_path, monkeypatch):
+    monkeypatch.setenv("VIBE_SUBMIT_HOME", str(tmp_path))
+    called = False
+
+    def register(*args):
+        nonlocal called
+        called = True
+        return True
+
+    monkeypatch.setattr(bootstrap, "_student_registration", register)
+    assert not bootstrap._configure(
+        "2026001", "张三", "vc_invite", "too-long-password", "too-long-password", "https://class.example"
+    )
+    assert called is False

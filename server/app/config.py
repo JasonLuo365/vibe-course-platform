@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 60
 
     # LLM / worker settings
-    llm_base_url: str = ""
+    llm_base_url: str = "https://api.moonshot.cn/v1"
     llm_api_key: str = ""
-    llm_model: str = "deepseek-chat"
+    llm_model: str = "kimi-k2.6"
     worker_enabled: bool = True
 
 

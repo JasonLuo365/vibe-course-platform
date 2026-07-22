@@ -3,7 +3,7 @@ import hashlib
 import io
 import json
 import zipfile
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from app import models
 from app.db import SessionLocal
@@ -90,16 +90,18 @@ class TestBoardPage:
     def test_teacher_can_create_assignment_with_prompt_in_web_form(self, client):
         _login(client)
         cid = client.post("/courses", json={"name": "C", "term": ""}).json()["id"]
-        page = client.get("/assignments/new")
+        page = client.get(f"/courses/{cid}/assignments/new")
         assert page.status_code == 200
+        assert 'name="course_id"' in page.text
         assert "evaluation_instructions" in page.text
         assert "team_vibe_coding" in page.text
         assert '<select id="evaluation_profile"' in page.text
+        assert "评分维度" not in page.text
+        assert "rubric_name" not in page.text
         created = client.post("/assignments/new", data={
-            "course_name": "C", "course_term": "", "title": "网页创建", "description": "d",
+            "course_id": str(cid), "title": "网页创建", "description": "d",
             "opens_at": "2026-07-20T08:00", "deadline": "2026-07-21T23:59", "max_package_mb": "50",
             "evaluation_profile": "team_vibe_coding", "evaluation_instructions": "成品优先评分。",
-            "rubric_name": ["成果"], "rubric_weight": ["100"], "rubric_description": ["可运行"],
         }, follow_redirects=False)
         assert created.status_code == 302
         db = SessionLocal()
@@ -107,6 +109,13 @@ class TestBoardPage:
         assert assignment.code and assignment.evaluation_profile == "team_vibe_coding"
         assert assignment.course_id == cid
         assert assignment.evaluation_instructions == "成品优先评分。"
+        assert assignment.rubric_json == [{
+            "name": "综合完成情况",
+            "weight": 100,
+            "description": "结合本作业说明、评价提示词和提交证据进行综合评价。",
+        }]
+        assert assignment.opens_at == datetime(2026, 7, 20, 0, 0)
+        assert assignment.deadline == datetime(2026, 7, 21, 15, 59)
         db.close()
 
     def test_teacher_can_edit_assignment_evaluation_prompt(self, client):
@@ -295,5 +304,37 @@ class TestDashboard:
         r = client.get("/")
         assert r.status_code == 200
         assert "Vibe" in r.text
+        assert "课程邀请码" in r.text
+        assert "在本课程创建作业" in r.text
+        assert "开放时间" in r.text
         assert "总览与评审" in r.text
         assert "/assignments/" in r.text and "/board" in r.text
+
+    def test_teacher_creates_course_with_one_invite_and_multiple_assignment_codes(self, client):
+        _login(client)
+        created = client.post("/courses/new", data={"name": "软件工程", "term": "2026 秋"}, follow_redirects=False)
+        assert created.status_code == 302
+        db = SessionLocal()
+        course = db.query(models.Course).one()
+        enrollment = db.query(models.CourseEnrollment).filter_by(course_id=course.id).one()
+        invite = enrollment.enrollment_code
+        db.close()
+        assert invite and invite.startswith("vc_")
+
+        for title in ("作业一", "作业二"):
+            response = client.post("/assignments/new", data={
+                "course_id": str(course.id), "title": title, "description": "",
+                "opens_at": "2026-07-20T08:00", "deadline": "2026-07-21T23:59", "max_package_mb": "50",
+                "evaluation_profile": "generic_experiment", "evaluation_instructions": "",
+            }, follow_redirects=False)
+            assert response.status_code == 302
+        db = SessionLocal()
+        assignments = db.query(models.Assignment).order_by(models.Assignment.id).all()
+        current_invite = db.query(models.CourseEnrollment).filter_by(course_id=course.id).one().enrollment_code
+        db.close()
+        assert len(assignments) == 2
+        assert {assignment.course_id for assignment in assignments} == {course.id}
+        assert assignments[0].code != assignments[1].code
+        assert current_invite == invite
+        dashboard = client.get("/")
+        assert "开放时间" in dashboard.text

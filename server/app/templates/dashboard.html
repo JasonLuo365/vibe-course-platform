@@ -7,25 +7,31 @@
     <h1>课程仪表盘</h1>
     <p class="page-summary">统一查看课程、作业进度与评估配置。</p>
   </div>
-  <a class="button" href="/assignments/new">创建作业</a>
+  <a class="button" href="/courses/new">创建课程</a>
 </div>
 
 {% for row in rows %}
 <section class="course-card">
   <div class="course-card-head">
     <h2>{{ row.course.name }} <span class="term">{{ row.course.term }}</span></h2>
-    <span class="course-tag">{{ row.assignments|length }} 项作业</span>
+    <div class="dashboard-actions">
+      <span class="course-tag">{{ row.assignments|length }} 项作业</span>
+      <a class="button button-small" href="/courses/{{ row.course.id }}/assignments/new">在本课程创建作业</a>
+    </div>
   </div>
+  {% set enrollment = enrollments.get(row.course.id) %}
+  <p class="meta">课程邀请码：{% if enrollment and enrollment.enrollment_code %}<code>{{ enrollment.enrollment_code }}</code>{% else %}尚未生成，请在<a href="/students">学生管理</a>中生成{% endif %}</p>
   <table class="assign-table">
     <thead>
-      <tr><th>作业</th><th>作业码</th><th>截止时间</th><th>操作</th></tr>
+      <tr><th>作业</th><th>作业码</th><th>开放时间</th><th>截止时间</th><th>操作</th></tr>
     </thead>
     <tbody>
       {% for a in row.assignments %}
       <tr>
         <td>{{ a.title }}</td>
         <td><code>{{ a.code }}</code></td>
-        <td>{{ a.deadline }}</td>
+        <td>{{ a.opens_at|teacher_time }}</td>
+        <td>{{ a.deadline|teacher_time }}</td>
         <td>
           <div class="dashboard-actions">
             <a class="button button-small" href="/assignments/{{ a.id }}/board">进入总览与评审</a>
@@ -34,12 +40,12 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="empty">暂无作业</td></tr>
+      <tr><td colspan="5" class="empty">暂无作业</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </section>
 {% else %}
-<p class="empty">暂无课程。请先创建课程、导入花名册并创建作业。</p>
+<p class="empty">暂无课程。请先<a href="/courses/new">创建课程</a>，再导入花名册并在课程内创建作业。</p>
 {% endfor %}
 {% endblock %}

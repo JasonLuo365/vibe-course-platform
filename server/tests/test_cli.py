@@ -55,3 +55,10 @@ def test_cli_rejects_duplicate_teacher(monkeypatch, settings):
     _run_cli(monkeypatch, settings, ["create-teacher", "teacher", "Teacher"])
     with pytest.raises(SystemExit, match="Teacher already exists"):
         _run_cli(monkeypatch, settings, ["create-teacher", "teacher", "Teacher"])
+
+
+def test_cli_course_creation_outputs_enrollment_code(monkeypatch, capsys, settings):
+    create_app(settings)
+
+    _run_cli(monkeypatch, settings, ["create-course", "Vibe", "--term", "2026夏"])
+    assert '"enrollment_code": "vc_' in capsys.readouterr().out

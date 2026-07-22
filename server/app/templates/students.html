@@ -10,7 +10,7 @@
 </div>
 <section class="card">
   <h2>学生自助登记与固定分组</h2>
-  <p class="page-summary">生成邀请码后，学生安装插件时填写邀请码、学号、姓名和密码即可登记。锁定后学生不能自行创建或加入小组，教师仍可在首次提交前调整。</p>
+  <p class="page-summary">课程创建时会自动生成邀请码。学生安装插件时填写邀请码、学号、姓名和密码即可登记；锁定后学生不能自行创建或加入小组，教师仍可在首次提交前调整。</p>
   {% for course in courses %}
   {% set enrollment = enrollments.get(course.id) %}
   <div class="dashboard-actions" style="margin: 10px 0; align-items: center;">
@@ -19,26 +19,29 @@
     <label class="inline-field">每组最多人数
       <input class="enrollment-size" data-course-id="{{ course.id }}" type="number" min="2" max="20" value="{{ enrollment.max_group_size if enrollment else 6 }}">
     </label>
-    <button class="button button-small enrollment-code" data-course-id="{{ course.id }}">生成/重置邀请码</button>
-    <output class="invite-result" data-course-id="{{ course.id }}">{% if enrollment and enrollment.enrollment_code %}当前邀请码：{{ enrollment.enrollment_code }}{% elif enrollment %}旧邀请码无法恢复，请重新生成。{% endif %}</output>
+    {% if enrollment %}<button class="button button-small enrollment-settings" data-course-id="{{ course.id }}">保存分组人数</button>{% else %}<button class="button button-small enrollment-code" data-course-id="{{ course.id }}">生成邀请码</button>{% endif %}
+    <output class="invite-result" data-course-id="{{ course.id }}">{% if enrollment and enrollment.enrollment_code %}课程邀请码：{{ enrollment.enrollment_code }}（创建后不可更改）{% elif enrollment %}旧邀请码无法恢复，请生成一次新邀请码。{% endif %}</output>
     {% if enrollment %}<button class="button button-small group-lock" data-course-id="{{ course.id }}" data-locked="{{ 'true' if enrollment.groups_locked else 'false' }}">{{ '解锁分组' if enrollment.groups_locked else '锁定分组' }}</button>{% endif %}
   </div>
   {% endfor %}
 </section>
 <section class="card">
+  <h2>学生名单管理</h2>
+  <p class="meta">学生通过课程邀请码首次登记，或由教师导入 CSV 名单。教师可在下表修改学号、姓名和分组；已有提交的学生不能删除，以保留评估历史。</p>
   <table class="assign-table">
-    <thead><tr><th>课程</th><th>学号</th><th>姓名</th><th>小组</th><th>提交状态</th></tr></thead>
+    <thead><tr><th>课程</th><th>学号</th><th>姓名</th><th>小组</th><th>提交状态</th><th>操作</th></tr></thead>
     <tbody>
       {% for row in rows %}
       <tr>
         <td>{{ row.course.name if row.course else '-' }}</td>
-        <td>{{ row.student.student_no }}</td>
-        <td>{{ row.student.name }}</td>
+        <td><input class="student-no" data-student-id="{{ row.student.id }}" value="{{ row.student.student_no }}" maxlength="100" aria-label="{{ row.student.name }} 的学号"></td>
+        <td><input class="student-name" data-student-id="{{ row.student.id }}" value="{{ row.student.name }}" maxlength="100" aria-label="{{ row.student.student_no }} 的姓名"></td>
         <td><select class="student-group" data-student-id="{{ row.student.id }}"><option value="">未分组</option>{% for group in groups_by_course.get(row.student.course_id, []) %}<option value="{{ group.id }}" {% if row.group_id == group.id %}selected{% endif %}>{{ group.name }}</option>{% endfor %}</select></td>
         <td>{{ row.statuses|join(', ') if row.statuses else '未提交' }}</td>
+        <td><div class="dashboard-actions"><button class="button button-small student-save" data-student-id="{{ row.student.id }}" type="button">保存</button><button class="button button-small button-secondary student-delete" data-student-id="{{ row.student.id }}" type="button">删除</button></div></td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="empty">尚未导入学生名单。</td></tr>
+      <tr><td colspan="6" class="empty">尚未导入或新增学生。</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -48,7 +51,7 @@
 <script>
 async function groupRequest(url, method, body) {
   const response = await fetch(url, {method: method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
-  const data = await response.json();
+  const data = response.status === 204 ? {} : await response.json();
   if (!response.ok) throw new Error(data.detail?.message || '操作失败');
   return data;
 }
@@ -64,9 +67,28 @@ document.querySelectorAll('.enrollment-code').forEach((button) => button.addEven
   button.disabled = true;
   try {
     const data = await groupRequest(`/courses/${courseId}/enrollment-code`, 'POST', {max_group_size: max});
-    result.textContent = `新邀请码：${data.enrollment_code}（请保存后发给学生）`;
+    result.textContent = `课程邀请码：${data.enrollment_code}（创建后不可更改）`;
   } catch (e) {
     result.textContent = e.message || '生成邀请码失败。';
+  } finally {
+    button.disabled = false;
+  }
+}));
+document.querySelectorAll('.enrollment-settings').forEach((button) => button.addEventListener('click', async () => {
+  const courseId = button.dataset.courseId;
+  const size = document.querySelector(`.enrollment-size[data-course-id="${courseId}"]`);
+  const result = document.querySelector(`.invite-result[data-course-id="${courseId}"]`);
+  const max = Number(size.value);
+  if (!Number.isInteger(max) || max < 2 || max > 20) {
+    result.textContent = '请输入 2–20 之间的每组人数。';
+    return;
+  }
+  button.disabled = true;
+  try {
+    const data = await groupRequest(`/courses/${courseId}/enrollment-settings`, 'PUT', {max_group_size: max});
+    result.textContent = `课程邀请码：${data.enrollment_code}（未改变）`;
+  } catch (e) {
+    result.textContent = e.message || '更新分组人数失败。';
   } finally {
     button.disabled = false;
   }
@@ -78,6 +100,22 @@ document.querySelectorAll('.group-lock').forEach((button) => button.addEventList
 }));
 document.querySelectorAll('.student-group').forEach((select) => select.addEventListener('change', async () => {
   try { await groupRequest(`/students/${select.dataset.studentId}/group`, 'POST', {group_id: select.value ? Number(select.value) : null}); location.reload(); } catch (e) { alert(e.message); location.reload(); }
+}));
+document.querySelectorAll('.student-save').forEach((button) => button.addEventListener('click', async () => {
+  const id = button.dataset.studentId;
+  const studentNo = document.querySelector(`.student-no[data-student-id="${id}"]`);
+  const studentName = document.querySelector(`.student-name[data-student-id="${id}"]`);
+  try {
+    await groupRequest(`/students/${id}`, 'PUT', {student_no: studentNo.value, name: studentName.value});
+    location.reload();
+  } catch (e) { alert(e.message); }
+}));
+document.querySelectorAll('.student-delete').forEach((button) => button.addEventListener('click', async () => {
+  if (!confirm('确定删除该学生吗？已有提交的学生不能删除。')) return;
+  try {
+    await groupRequest(`/students/${button.dataset.studentId}`, 'DELETE');
+    location.reload();
+  } catch (e) { alert(e.message); }
 }));
 </script>
 {% endblock %}
