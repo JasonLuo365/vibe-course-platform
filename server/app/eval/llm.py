@@ -55,6 +55,11 @@ class OpenAICompatProvider:
             or "moonshot.ai" in base_url
         )
 
+    @property
+    def supports_vision(self) -> bool:
+        """Only opt in where this provider is known to accept image inputs."""
+        return self._uses_kimi_parameters()
+
     def complete(
         self,
         messages: list[dict[str, Any]],

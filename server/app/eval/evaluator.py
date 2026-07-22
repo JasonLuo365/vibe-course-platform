@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from .parser import RolloutTimeline
+from .artifacts import VisualEvidence, extract_document_text
 from .prompts import (
     GROUP_SCHEMA,
     INDIVIDUAL_SCHEMA,
@@ -122,6 +123,11 @@ def code_digest(extract_dir: str, max_files: int = 20, max_chars: int = 8000) ->
     def priority(item: tuple[Path, int]) -> tuple[int, int]:
         rel, size = item
         name = rel.name.lower()
+        if rel.suffix.lower() in {
+            ".md", ".txt", ".rst", ".pdf", ".doc", ".docx", ".odt", ".rtf",
+            ".ppt", ".pptx", ".xls", ".xlsx",
+        }:
+            return (4, size)
         if name in _ENTRY_FILES:
             return (3, size)
         if name.endswith(".py"):
@@ -139,14 +145,10 @@ def code_digest(extract_dir: str, max_files: int = 20, max_chars: int = 8000) ->
             break
         abs_path = root / rel
         header = f"\n\n--- {rel.as_posix()} ---\n"
-        try:
-            text = abs_path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            text = ""
-
         room = budget - len(header) - len("\n...[省略]...")
         if room <= 0:
             break
+        text = extract_document_text(abs_path, max_chars=room)
         chunk = text[:room]
         if len(text) > len(chunk):
             chunk += "\n...[省略]..."
@@ -205,6 +207,30 @@ def _append_error_note(
     return new_messages
 
 
+def _append_multimodal_error_note(messages: list[dict], error_note: str) -> list[dict]:
+    """Keep retry feedback in the text part of an image-plus-text message."""
+    new_messages = [dict(message) for message in messages]
+    note = "\n\n[上次输出错误，请修正后重新输出]\n" + error_note
+    for message in reversed(new_messages):
+        if message.get("role") != "user":
+            continue
+        content = message.get("content", "")
+        if not isinstance(content, list):
+            message["content"] = content + note
+            return new_messages
+        copied = [dict(part) for part in content]
+        for part in copied:
+            if part.get("type") == "text":
+                part["text"] = part.get("text", "") + note
+                break
+        else:
+            copied.append({"type": "text", "text": note})
+        message["content"] = copied
+        return new_messages
+    new_messages.append({"role": "user", "content": error_note})
+    return new_messages
+
+
 def _clamp_quotes(data: dict) -> None:
     """LLM 输出的超长 quote 截断至 200 字符并写入 flags（审计透明）。
 
@@ -250,6 +276,7 @@ def evaluate_individual(
     *,
     profile: str = "generic_experiment",
     custom_instructions: str = "",
+    visual_evidence: list[VisualEvidence] | None = None,
 ) -> dict:
     evidence_pack = build_evidence_pack(timelines, code_digest, metrics)
     messages = individual_messages(
@@ -259,6 +286,7 @@ def evaluate_individual(
         profile=profile,
         custom_instructions=custom_instructions,
         has_sessions=bool(timelines),
+        visual_evidence=visual_evidence if getattr(provider, "supports_vision", False) else None,
     )
 
     last_error: Exception | None = None
@@ -270,7 +298,7 @@ def evaluate_individual(
             return eval_out.model_dump() | {"prompt_version": PROMPT_VERSION}
         except (json.JSONDecodeError, ValidationError, EvalError) as exc:
             last_error = exc
-            messages = _append_error_note(messages, _error_note(exc))
+            messages = _append_multimodal_error_note(messages, _error_note(exc))
 
     raise EvalError(f"个人评估失败，已重试 2 次：{last_error}")
 

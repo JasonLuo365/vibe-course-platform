@@ -1,6 +1,9 @@
 import json
+from typing import Any
 
-PROMPT_VERSION = "v4"
+from .artifacts import VisualEvidence
+
+PROMPT_VERSION = "v5"
 
 # These are the reusable, teacher-facing evaluation prompt templates.  Keep
 # their ids stable because each assignment stores the selected id.
@@ -235,7 +238,8 @@ def individual_messages(
     custom_instructions: str = "",
     error_note: str | None = None,
     has_sessions: bool = True,
-) -> list[dict[str, str]]:
+    visual_evidence: list[VisualEvidence] | None = None,
+) -> list[dict[str, Any]]:
     user_content = (
         "请根据以下证据包、指标和评分标准，对学生本次作业进行个人评估。\n\n"
         f"[证据包]\n{evidence_pack}\n\n"
@@ -245,6 +249,21 @@ def individual_messages(
     if error_note:
         user_content += f"\n\n[上次输出错误，请修正后重新输出]\n{error_note}"
 
+    content: str | list[dict[str, Any]] = user_content
+    if visual_evidence:
+        content = [
+            {
+                "type": "text",
+                "text": user_content
+                + "\n\n[报告图表证据]\n以下图片来自学生提交的报告或截图。请结合文字审阅图表；看不清或无法核验时必须明确说明，不得猜测。",
+            }
+        ]
+        for index, image in enumerate(visual_evidence, start=1):
+            content.append({"type": "text", "text": f"图表 {index}：{image.label}"})
+            content.append(
+                {"type": "image_url", "image_url": {"url": image.data_url()}}
+            )
+
     return [
         {
             "role": "system",
@@ -252,7 +271,7 @@ def individual_messages(
                 rubric, profile, custom_instructions, has_sessions=has_sessions
             ),
         },
-        {"role": "user", "content": user_content},
+        {"role": "user", "content": content},
     ]
 
 

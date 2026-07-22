@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from ..config import Settings, get_settings
+from .artifacts import collect_visual_evidence
 from .evaluator import EvalError, code_digest, evaluate_group, evaluate_individual
 from .metrics import compute_metrics
 from .parser import parse_rollout
@@ -88,6 +89,11 @@ def evaluate_attempt(
     extract_dir = _extract_dir_for_attempt(attempt, settings)
     timelines = _parse_sessions(extract_dir)
     digest = code_digest(extract_dir)
+    visual_evidence = (
+        collect_visual_evidence(extract_dir)
+        if getattr(provider, "supports_vision", False)
+        else []
+    )
     metrics = compute_metrics(timelines)
 
     submission = db.get(models.Submission, attempt.submission_id)
@@ -105,6 +111,7 @@ def evaluate_attempt(
             provider,
             profile=profile,
             custom_instructions=instructions,
+            visual_evidence=visual_evidence,
         )
     except EvalError as e:
         error = str(e)
