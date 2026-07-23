@@ -220,9 +220,9 @@ class TestEvaluateIndividual:
             custom_instructions="【占位】等待题目与参考答案。",
         )
         system = provider.calls[0]["messages"][0]["content"]
-        assert "解释数据异常原因" in system
-        assert "teacher-01-experiment-01" in system
         assert "等待题目与参考答案" in system
+        assert "解释数据异常原因" not in system
+        assert "teacher-01-experiment-01" not in system
 
     def test_valid_evaluation_fields(self, timelines, code_digest_text, metrics, rubric):
         provider = FakeLLMProvider(responses=[_valid_individual_json()])

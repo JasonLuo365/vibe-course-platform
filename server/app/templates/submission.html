@@ -17,7 +17,7 @@
 {% block content %}
 <section class="detail-header">
   <div><p class="eyebrow">作业评阅</p><h1>{{ assignment.title }}</h1><p class="meta">{{ student.student_no }} · {{ student.name }} · 状态：{{ submission.status }}</p></div>
-  <div class="badges">{% if ai_grade %}<span class="badge ai">AI 原评：{{ ai_grade }}</span>{% endif %}{% if final_grade %}<span class="badge final">最终：{{ final_grade }}</span>{% endif %}</div>
+  <div class="badges">{% if final_grade %}<span class="badge final">成绩：{{ final_grade }}</span>{% endif %}</div>
 </section>
 
 <div class="tabs" role="tablist">
@@ -26,10 +26,10 @@
 
 <section class="tab-panel active" id="eval">
   {% if evaluation %}
-  <div class="review-grid"><div class="card grade-card"><p>AI 评估等级</p><strong class="grade">{{ evaluation.grade }}</strong><p>{% if evaluation.published_at %}已于 {{ evaluation.published_at }} 发布给学生{% else %}仅教师可见，尚未发布{% endif %}</p>{% if not evaluation.published_at %}<form method="post" action="/evaluations/{{ evaluation.id }}/publish"><button type="submit" class="button">发布给学生</button></form>{% endif %}</div><div class="card"><h2>综合理由</h2><p>{{ evaluation.rationale }}</p></div></div>
+  <div class="review-grid"><div class="card grade-card"><p>评估等级</p><strong class="grade">{{ final_grade or evaluation.grade }}</strong><p>{% if evaluation.published_at %}已于 {{ evaluation.published_at }} 发布给学生{% else %}仅教师可见，尚未发布{% endif %}</p>{% if not evaluation.published_at %}<form method="post" action="/evaluations/{{ evaluation.id }}/publish"><button type="submit" class="button">发布给学生</button></form>{% endif %}</div><div class="card"><h2>综合理由</h2><p>{{ evaluation.rationale }}</p></div></div>
   <div class="card"><h2>维度得分</h2><ul class="dimensions">{% for d in evaluation.dimension_scores_json %}<li><strong>{{ d.name }}</strong> <span>{{ d.score }} 分 · 权重 {{ d.weight }}%</span><p class="rationale">{{ d.rationale }}</p></li>{% endfor %}</ul></div>
   <div class="card"><h2>反馈建议</h2><ul>{% for fb in evaluation.feedback_json %}<li>{{ fb }}</li>{% endfor %}</ul></div>
-  <div class="card"><h2>教师调分</h2><form method="post" action="/evaluations/{{ evaluation.id }}/override"><label for="final_grade">最终等级</label><select id="final_grade" name="final_grade" required>{% for grade in ['A','B','C','D','E'] %}<option value="{{ grade }}" {% if final_grade == grade %}selected{% endif %}>{{ grade }}</option>{% endfor %}</select><label for="comment">调分备注</label><input type="text" id="comment" name="comment" placeholder="说明调整原因"><button type="submit" class="button">保存调分</button></form></div>
+  <div class="card"><h2>教师评分</h2><form method="post" action="/evaluations/{{ evaluation.id }}/override"><label for="final_grade">成绩</label><select id="final_grade" name="final_grade" required>{% for grade in ['A','B','C','D','E'] %}<option value="{{ grade }}" {% if final_grade == grade %}selected{% endif %}>{{ grade }}</option>{% endfor %}</select><label for="comment">教师备注</label><input type="text" id="comment" name="comment" placeholder="可选：说明评分原因"><button type="submit" class="button">保存成绩</button></form></div>
   {% else %}<div class="card empty-state">暂无评估结果</div>{% endif %}
 </section>
 

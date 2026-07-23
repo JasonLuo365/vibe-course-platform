@@ -435,7 +435,7 @@ def export_xlsx(
     feedback = workbook.active
     feedback.title = "个人反馈"
     feedback_headers = [
-        "学号", "姓名", "小组", "提交状态", "AI 等级", "最终等级",
+        "学号", "姓名", "小组", "提交状态", "评估等级", "成绩",
         "个人评价", "改进建议", "评分维度与说明", "教师备注",
     ]
     _style_export_sheet(

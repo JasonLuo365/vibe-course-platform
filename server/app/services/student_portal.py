@@ -53,6 +53,16 @@ def dashboard_data(db: Session, student: models.Student) -> dict:
         .all()
     )
     submission_by_assignment = {item.assignment_id: item for item in submissions}
+    attachments_by_assignment: dict[int, list[models.AssignmentAttachment]] = {}
+    if assignments:
+        assignment_ids = [item.id for item in assignments]
+        for attachment in (
+            db.query(models.AssignmentAttachment)
+            .filter(models.AssignmentAttachment.assignment_id.in_(assignment_ids))
+            .order_by(models.AssignmentAttachment.id)
+            .all()
+        ):
+            attachments_by_assignment.setdefault(attachment.assignment_id, []).append(attachment)
     rows = []
     for assignment in assignments:
         submission = submission_by_assignment.get(assignment.id)
@@ -67,6 +77,7 @@ def dashboard_data(db: Session, student: models.Student) -> dict:
                 "submission": submission,
                 "attempt": attempt,
                 "evaluation": _evaluation_for_attempt(db, attempt),
+                "attachments": attachments_by_assignment.get(assignment.id, []),
             }
         )
     return {"student": student, "course": course, "group": group, "rows": rows}

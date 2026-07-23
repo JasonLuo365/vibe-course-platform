@@ -30,7 +30,7 @@
 <section class="matrix">
   {% for row in groups %}
   <div class="group-card">
-    <div class="group-card-head"><h2>{{ row.group.name if row.group else '未分组' }}</h2><span>{{ row.members|length }} 人</span>{% if row.group_evaluation %}<span class="badge ai">小组 AI: {{ row.group_evaluation.grade }}</span>{% if row.group_final_grade %}<span class="badge final">小组最终: {{ row.group_final_grade }}</span>{% endif %}{% if row.group_evaluation.published_at %}<span class="badge status">小组报告已发布</span>{% else %}<form method="post" action="/group-evaluations/{{ row.group_evaluation.id }}/publish"><button type="submit" class="button button-small">发布小组报告</button></form>{% endif %}{% endif %}</div>
+    <div class="group-card-head"><h2>{{ row.group.name if row.group else '未分组' }}</h2><span>{{ row.members|length }} 人</span>{% if row.group_final_grade %}<span class="badge final">小组成绩: {{ row.group_final_grade }}</span>{% endif %}{% if row.group_evaluation %}{% if row.group_evaluation.published_at %}<span class="badge status">小组报告已发布</span>{% else %}<form method="post" action="/group-evaluations/{{ row.group_evaluation.id }}/publish"><button type="submit" class="button button-small">发布小组报告</button></form>{% endif %}{% endif %}</div>
     <div class="group-members">
       {% for m in row.members %}
       {% if m.submission %}
@@ -45,11 +45,8 @@
         </div>
         <div class="badges">
           <span class="badge status">{{ m.cell_status }}</span>
-          {% if m.evaluation %}
-          <span class="badge ai">AI: {{ m.evaluation.grade }}</span>
-          {% endif %}
           {% if m.final_grade %}
-          <span class="badge final">最终: {{ m.final_grade }}</span>
+          <span class="badge final">成绩: {{ m.final_grade }}</span>
           {% endif %}
           {% if m.stale %}
           <span class="badge stale">[基于旧提交]</span>

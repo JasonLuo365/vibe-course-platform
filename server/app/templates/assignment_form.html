@@ -2,15 +2,16 @@
 {% block title %}创建作业 - Vibe{% endblock %}
 {% block content %}
 <section class="page-heading"><div><p class="eyebrow">{{ selected_course.name }} {{ selected_course.term }}</p><h1>创建作业</h1><p class="page-summary">课程邀请码保持不变；保存后只为本作业生成新的作业码。</p></div></section>
-<section class="card"><form method="post" action="/assignments/new">
+<section class="card"><form method="post" action="/assignments/new" enctype="multipart/form-data">
   <label for="course_id">所属课程</label><select id="course_id" name="course_id" required>{% for course in courses %}<option value="{{ course.id }}" {% if course.id == selected_course.id %}selected{% endif %}>{{ course.name }}{% if course.term %} · {{ course.term }}{% endif %}</option>{% endfor %}</select><p class="meta">需要新课程？请先返回课程看板创建课程。</p>
   <label for="title">作业名称</label><input id="title" name="title" required>
-  <label for="description">作业说明</label><textarea id="description" name="description" rows="5" placeholder="学生需要完成什么项目、提交什么成果？"></textarea>
+  <label for="description">作业说明</label><textarea id="description" name="description" rows="12" maxlength="20000" placeholder="请写明学生需要完成什么项目、提交什么成果、验收要求和注意事项。"></textarea><p class="meta">最多 20000 字符。</p>
+  <label for="attachments">作业附件（可多选）</label><input id="attachments" name="attachments" type="file" multiple><p class="meta">可上传题目、数据集、参考资料等。一次最多 10 个文件；单个不超过 20 MB，合计不超过 50 MB。学生可在作业页下载。</p>
   <label for="opens_at">开放时间</label><input id="opens_at" name="opens_at" type="datetime-local" required>
   <label for="deadline">截止时间</label><input id="deadline" name="deadline" type="datetime-local" required>
   <label for="max_package_mb">最大提交包（MB）</label><input id="max_package_mb" name="max_package_mb" type="number" value="50" min="1" required>
-  <label for="evaluation_profile">评价提示词模板</label><select id="evaluation_profile" name="evaluation_profile" required>{% for value, label in prompt_profiles %}<option value="{{ value }}" {% if value == 'generic_experiment' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><p class="meta">选择适合本作业的已有评分提示词模板；下方可补充本作业的专属规则。</p>
-  <label for="evaluation_instructions">本作业专属评估提示词</label><textarea id="evaluation_instructions" name="evaluation_instructions" rows="12" maxlength="12000" placeholder="可留空。教师可在此输入本作业的评分规则、参考答案、扣分边界和反馈要求。"></textarea>
+  <label for="evaluation_profile">系统内置评估模板（未填写教师提示词时使用）</label><select id="evaluation_profile" name="evaluation_profile" required>{% for value, label in prompt_profiles %}<option value="{{ value }}" {% if value == 'generic_experiment' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select><p class="meta">教师提示词留空时，系统按此模板评估；实验性作业默认重视探索、证据和分析，而非机械扣分。</p>
+  <label for="evaluation_instructions">教师评估提示词（填写后优先使用）</label><textarea id="evaluation_instructions" name="evaluation_instructions" rows="12" maxlength="12000" placeholder="可留空。填写后，大模型将以此作为本作业的主要评分依据；可写评分重点、参考答案、等级标准、合理扣分边界和反馈要求。"></textarea><p class="meta">教师提示词会覆盖与其冲突的系统默认维度；留空时才使用上方系统内置模板。</p>
   <button type="submit" class="button">创建作业并生成作业码</button>
 </form></section>
 {% endblock %}

@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}评估提示词配置 - Vibe{% endblock %}
 {% block content %}
-<section class="page-heading"><div><p class="eyebrow">作业评估配置</p><h1>{{ assignment.title }}</h1><p class="page-summary">作业码：<code>{{ assignment.code }}</code>。提示词留空时只使用通用评价规则。</p></div></section>
+<section class="page-heading"><div><p class="eyebrow">作业评估配置</p><h1>{{ assignment.title }}</h1><p class="page-summary">作业码：<code>{{ assignment.code }}</code>。教师提示词填写后优先使用；留空时使用系统内置模板。</p></div></section>
 <section class="card"><form method="post" action="/assignments/{{ assignment.id }}/evaluation-config">
-  <label for="evaluation_profile">评价提示词模板</label>
+  <label for="evaluation_profile">系统内置评估模板（未填写教师提示词时使用）</label>
   <select id="evaluation_profile" name="evaluation_profile" required>{% for value, label in prompt_profiles %}<option value="{{ value }}" {% if value == (assignment.evaluation_profile or 'generic_experiment') %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
-  <p class="meta">选择适合本作业的已有评分提示词模板；专属规则可在下方继续补充。</p>
-  <label for="evaluation_instructions">本作业专属评估提示词</label>
-  <textarea id="evaluation_instructions" name="evaluation_instructions" rows="18" maxlength="12000" placeholder="可留空。后续可在这里输入本作业的评估重点、参考答案、扣分边界和反馈要求。">{{ assignment.evaluation_instructions or '' }}</textarea>
-  <p class="meta">此内容只应用于本作业，不会影响其他老师或其他作业。</p>
+  <p class="meta">仅在下方教师提示词留空时，系统才按此模板评估。</p>
+  <label for="evaluation_instructions">教师评估提示词（填写后优先使用）</label>
+  <textarea id="evaluation_instructions" name="evaluation_instructions" rows="18" maxlength="12000" placeholder="可留空。填写后，大模型将以此作为本作业的主要评分依据；可写评分重点、参考答案、等级标准、合理扣分边界和反馈要求。">{{ assignment.evaluation_instructions or '' }}</textarea>
+  <p class="meta">此内容只应用于本作业，并覆盖与其冲突的系统默认维度；不会影响其他作业。</p>
   <button type="submit" class="button">保存评估配置</button><a class="back-link" href="/assignments/{{ assignment.id }}/board">取消</a>
 </form></section>
 {% endblock %}

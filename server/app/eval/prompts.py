@@ -3,7 +3,21 @@ from typing import Any
 
 from .artifacts import VisualEvidence
 
-PROMPT_VERSION = "v5"
+PROMPT_VERSION = "v6"
+
+# Used for new assignments and for legacy assignments whose hidden rubric made
+# exploratory work look worse merely because it was not a polished product.
+SYSTEM_DEFAULT_RUBRIC = [
+    {
+        "name": "作业目标达成与实验质量",
+        "weight": 100,
+        "description": (
+            "结合本作业说明与已提交证据，综合认可明确的问题、合理探索、可复核结果、"
+            "分析反思与完整交付。以证据支持的成果为主；不因报告表现形式、会话数量或"
+            "提示词复杂度单独扣分。只有作业要求缺失，或证据显示关键目标未完成时，才相应扣分。"
+        ),
+    }
+]
 
 # These are the reusable, teacher-facing evaluation prompt templates.  Keep
 # their ids stable because each assignment stores the selected id.
@@ -43,6 +57,22 @@ _PROFILE_INSTRUCTIONS = {
 
 
 def _profile_instruction(profile: str, custom_instructions: str) -> str:
+    if custom_instructions:
+        return (
+            "[教师评估提示词（本作业最高优先级）]\n"
+            f"{custom_instructions}\n\n"
+            "必须以这份教师提示词作为本作业的主要评分依据。它覆盖系统通用模板或默认维度中"
+            "与其冲突的要求；不要额外套用默认的严格门槛。若提示词没有给出具体权重，请从其中"
+            "提炼 1 至 4 个贴合本作业的评分维度，权重合计 100%。"
+        )
+    if profile == "generic_experiment":
+        return (
+            "这是实验性作业的系统内置评价档案。优先认可有明确问题、合理设计、可复核结果和"
+            "有依据的分析反思的工作。探索中出现失败、非预期结果或多次修改是正常现象；只要学生"
+            "能如实呈现并解释，不应因此机械扣分。会话记录、提示词数量、报告文件格式和页面包装"
+            "不是独立扣分项。成果与分析充分、且能由证据支持时，应给予与其质量相称的积极评价；"
+            "只有核心要求缺失或无法验证时，才明显降低等级。"
+        )
     base = _PROFILE_INSTRUCTIONS.get(
         profile,
         f"这是预留的评价档案“{profile}”。尚未填写该档案的专属规则，请按通用证据原则评分。",
@@ -173,6 +203,16 @@ def _format_rubric(rubric: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def effective_rubric(rubric: list[dict] | None) -> list[dict]:
+    """Use the current outcome-focused baseline for empty or legacy rubrics."""
+    if not rubric:
+        return list(SYSTEM_DEFAULT_RUBRIC)
+    legacy = [(item.get("name"), item.get("weight")) for item in rubric]
+    if legacy == [("功能完成度", 40), ("成果质量", 40), ("过程与迭代", 20)]:
+        return list(SYSTEM_DEFAULT_RUBRIC)
+    return rubric
+
+
 def _system_prompt(
     rubric: list[dict], profile: str, custom_instructions: str, *, has_sessions: bool
 ) -> str:
@@ -240,6 +280,10 @@ def individual_messages(
     has_sessions: bool = True,
     visual_evidence: list[VisualEvidence] | None = None,
 ) -> list[dict[str, Any]]:
+    # A teacher-authored prompt is authoritative.  Do not leave a hidden
+    # system rubric in the request for the model to accidentally prioritize.
+    if custom_instructions:
+        rubric = []
     user_content = (
         "请根据以下证据包、指标和评分标准，对学生本次作业进行个人评估。\n\n"
         f"[证据包]\n{evidence_pack}\n\n"
@@ -285,6 +329,8 @@ def group_messages(
     project_digest: str = "",
     error_note: str | None = None,
 ) -> list[dict[str, str]]:
+    if custom_instructions:
+        rubric = []
     user_content = (
         "请根据以下成员个人评估、指标和评分标准，对小组进行综合评估。\n\n"
         f"[小组最终项目成果节选]\n{project_digest or '未提供；不得虚构最终项目质量。'}\n\n"

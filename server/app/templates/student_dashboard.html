@@ -31,6 +31,9 @@
         <span class="assignment-code">{{ row.assignment.code }}</span>
         <h3>{{ row.assignment.title }}</h3>
         <p>{{ row.assignment.description or '暂无作业说明' }}</p>
+        {% if row.attachments %}
+        <div class="assignment-attachments"><strong>作业附件：</strong>{% for attachment in row.attachments %}<a href="/student/assignment-attachments/{{ attachment.id }}">{{ attachment.original_name }}</a>{% endfor %}</div>
+        {% endif %}
       </div>
       <div class="assignment-status">
         {% if not row.submission %}

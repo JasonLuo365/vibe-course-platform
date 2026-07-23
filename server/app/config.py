@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     max_uncompressed_mb: int = 250
     max_compression_ratio: float = 100.0
     rate_limit_per_minute: int = 60
+    assignment_attachment_max_file_mb: int = 20
+    assignment_attachment_max_files: int = 10
+    assignment_attachment_max_total_mb: int = 50
 
     # LLM / worker settings
     llm_base_url: str = "https://api.moonshot.cn/v1"

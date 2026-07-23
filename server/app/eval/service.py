@@ -12,7 +12,7 @@ from .artifacts import collect_visual_evidence
 from .evaluator import EvalError, code_digest, evaluate_group, evaluate_individual
 from .metrics import compute_metrics
 from .parser import parse_rollout
-from .prompts import PROMPT_VERSION
+from .prompts import PROMPT_VERSION, effective_rubric
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ def evaluate_attempt(
 
     submission = db.get(models.Submission, attempt.submission_id)
     assignment = db.get(models.Assignment, submission.assignment_id) if submission else None
-    rubric = assignment.rubric_json if assignment else []
+    rubric = effective_rubric(assignment.rubric_json if assignment else [])
     profile = (assignment.evaluation_profile if assignment else None) or "generic_experiment"
     instructions = (assignment.evaluation_instructions if assignment else None) or ""
 
@@ -169,7 +169,7 @@ def _maybe_evaluate_group(
     assignment_id = submission.assignment_id
     group_id = student.group_id
     assignment = db.get(models.Assignment, assignment_id)
-    rubric = assignment.rubric_json if assignment else []
+    rubric = effective_rubric(assignment.rubric_json if assignment else [])
     profile = (assignment.evaluation_profile if assignment else None) or "generic_experiment"
     instructions = (assignment.evaluation_instructions if assignment else None) or ""
 
@@ -260,7 +260,7 @@ def evaluate_group_job(
     settings = _settings_or_default(settings)
     missing = missing or []
     assignment = db.get(models.Assignment, assignment_id)
-    rubric = assignment.rubric_json if assignment else []
+    rubric = effective_rubric(assignment.rubric_json if assignment else [])
     profile = (assignment.evaluation_profile if assignment else None) or "generic_experiment"
     instructions = (assignment.evaluation_instructions if assignment else None) or ""
 

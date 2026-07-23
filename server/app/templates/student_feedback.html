@@ -20,7 +20,7 @@
   <section class="student-section">
     <div class="section-heading"><div><p class="eyebrow">INDIVIDUAL</p><h2>我的个人评语</h2></div></div>
     {% if evaluation %}
-    <div class="feedback-grade"><span>AI 评估等级</span><strong>{{ evaluation.grade }}</strong></div>
+    <div class="feedback-grade"><span>评估等级</span><strong>{{ evaluation.grade }}</strong></div>
     <div class="feedback-copy"><h3>综合评语</h3><p>{{ evaluation.rationale or '暂无综合评语。' }}</p></div>
     {% if evaluation.dimension_scores_json %}
     <div class="feedback-copy"><h3>维度得分</h3><div class="feedback-dimensions">

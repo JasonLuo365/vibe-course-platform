@@ -86,6 +86,18 @@ class Assignment(Base):
     max_package_mb: Mapped[int] = mapped_column(default=50)
 
 
+class AssignmentAttachment(Base):
+    """Teacher-provided reference files that belong to one assignment."""
+
+    __tablename__ = "assignment_attachments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("assignments.id"))
+    original_name: Mapped[str]
+    stored_name: Mapped[str] = mapped_column(unique=True)
+    size_bytes: Mapped[int]
+    created_at: Mapped[object] = mapped_column(DateTime, default=utcnow)
+
+
 class Submission(Base):
     __tablename__ = "submissions"
     __table_args__ = (UniqueConstraint("assignment_id", "student_id"),)

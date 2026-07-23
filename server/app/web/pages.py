@@ -2,17 +2,21 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from starlette.responses import FileResponse
 
 from .. import models
 from ..api.assignments import AssignmentIn, _new_code
+from ..services.jobs import requeue_assignment_current_attempts
 from ..api.courses import CourseIn, create_course_enrollment
 from ..db import get_db
-from ..deps import get_student_page, get_teacher
+from ..config import Settings
+from ..deps import get_settings_dep, get_student_page, get_teacher
 from ..eval.prompts import PROMPT_PROFILE_LABELS
 from ..errors import ApiError
 from . import PageAuthRequired
 from .board import board_data, progress_for_assignment
 from ..services.student_portal import dashboard_data, submission_feedback_data
+from ..services.assignment_attachments import attachment_directory, store_assignment_attachments
 from ..utils import teacher_local_to_naive_utc
 
 router = APIRouter()
@@ -309,8 +313,44 @@ async def create_assignment_page(request: Request, db: Session = Depends(get_db)
         max_package_mb=body.max_package_mb,
     )
     db.add(assignment)
+    db.flush()
+    uploads = [item for item in form.getlist("attachments") if hasattr(item, "filename")]
+    store_assignment_attachments(
+        db,
+        request.app.state.settings,
+        assignment.id,
+        uploads,
+    )
     db.commit()
     return RedirectResponse(url=f"/assignments/{assignment.id}/board", status_code=302)
+
+
+@router.get("/student/assignment-attachments/{attachment_id}")
+def download_assignment_attachment(
+    attachment_id: int,
+    db: Session = Depends(get_db),
+    student: models.Student = Depends(get_student_page),
+    settings: Settings = Depends(get_settings_dep),
+):
+    attachment = db.get(models.AssignmentAttachment, attachment_id)
+    if attachment is None:
+        raise ApiError(404, "NOT_FOUND", "附件不存在")
+    assignment = db.get(models.Assignment, attachment.assignment_id)
+    if assignment is None or assignment.course_id != student.course_id:
+        raise ApiError(404, "NOT_FOUND", "附件不存在")
+    root = attachment_directory(settings, assignment.id)
+    requested = (root / attachment.stored_name).resolve()
+    try:
+        requested.relative_to(root)
+    except ValueError as exc:
+        raise ApiError(404, "NOT_FOUND", "附件不存在") from exc
+    if not requested.is_file():
+        raise ApiError(404, "NOT_FOUND", "附件不存在")
+    return FileResponse(
+        str(requested),
+        filename=attachment.original_name,
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.get("/assignments/{aid}/evaluation-config", response_class=HTMLResponse)
@@ -342,8 +382,13 @@ async def save_evaluation_config(request: Request, aid: int, db: Session = Depen
         raise ApiError(422, "VALIDATION_ERROR", "评价档案不能为空且最多 100 个字符")
     if len(instructions) > 12000:
         raise ApiError(422, "VALIDATION_ERROR", "评估提示词最多 12000 个字符")
+    changed = (
+        assignment.evaluation_profile != profile
+        or assignment.evaluation_instructions != instructions
+    )
     assignment.evaluation_profile = profile
     assignment.evaluation_instructions = instructions
+    requeue_assignment_current_attempts(db, assignment.id) if changed else 0
     db.commit()
     return RedirectResponse(url=f"/assignments/{aid}/board", status_code=302)
 

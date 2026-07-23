@@ -10,6 +10,7 @@ from .. import models
 from ..db import get_db
 from ..deps import get_settings_dep, get_teacher
 from ..errors import ApiError
+from ..services.jobs import requeue_assignment_current_attempts
 from ..utils import utcnow
 
 router = APIRouter()
@@ -43,6 +44,13 @@ class AssignmentIn(BaseModel):
     opens_at: datetime
     deadline: datetime
     max_package_mb: int = 50
+
+    @field_validator("description")
+    @classmethod
+    def description_size(cls, value: str) -> str:
+        if len(value) > 20000:
+            raise ValueError("description 最多 20000 个字符")
+        return value.strip()
 
     @field_validator("rubric")
     @classmethod
@@ -135,13 +143,19 @@ def update_evaluation_config(
     assignment = db.get(models.Assignment, assignment_id)
     if assignment is None:
         raise ApiError(404, "NOT_FOUND", "作业不存在")
+    changed = (
+        assignment.evaluation_profile != body.evaluation_profile
+        or assignment.evaluation_instructions != body.evaluation_instructions
+    )
     assignment.evaluation_profile = body.evaluation_profile
     assignment.evaluation_instructions = body.evaluation_instructions
+    requeued = requeue_assignment_current_attempts(db, assignment.id) if changed else 0
     db.commit()
     return {
         "id": assignment.id,
         "evaluation_profile": assignment.evaluation_profile,
         "evaluation_instructions": assignment.evaluation_instructions,
+        "requeued": requeued,
     }
 
 
